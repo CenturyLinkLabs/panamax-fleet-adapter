@@ -1,8 +1,11 @@
 require 'sinatra'
 require 'fleet'
+require "sinatra/reloader" if development?
 
 #set :port, ENV['PORT']
 set :bind, '0.0.0.0'
+
+@@fleet = Fleet.new(fleet_api_url: 'http://localhost:4001')
 
 class Service
 
@@ -10,15 +13,43 @@ class Service
     :expose, :environment, :volumes
 
   def initialize(attrs)
-    self.name = attrs[:name]
-    self.description = attrs[:description]
-    self.source = attrs[:source]
-    self.links = attrs[:links]
-    self.command= atrrs[:command]
-    self.ports = attrs[:ports]
-    self.expose = attrs[:expose]
-    self.environment = attrs[:environment]
-    self.volumes = attrs[:volumes]
+    self.name = attrs["name"]
+    self.description = attrs["description"]
+    self.source = attrs["source"]
+    self.links = attrs["links"]
+    self.command= attrs["command"]
+    self.ports = attrs["ports"]
+    self.expose = attrs["expose"]
+    self.environment = attrs["environment"]
+    self.volumes = attrs["volumes"]
+  end
+
+  def load
+    @@fleet.load(service_name, service_def)
+  end
+
+  def start
+    @@fleet.start(service_name)
+  end
+
+  def self.start(unit_name)
+    new("name" => unit_name).start
+  end
+
+  def stop
+    @@fleet.stop(service_name)
+  end
+
+  def self.stop(unit_name)
+    new("name" => unit_name).stop
+  end
+
+  def self.delete(unit_name)
+    @@fleet.destroy(unit_name)
+  end
+
+  def service_name
+    name.end_with?(".service") ? name : "#{name}.service"
   end
 
   def docker_run_string
@@ -31,7 +62,7 @@ class Service
       expose_flags,
       environment_flags,
       volume_flags,
-      from,
+      source,
       command
     ].flatten.compact.join(' ').strip
   end
@@ -41,7 +72,7 @@ class Service
       'Description' => description
     }
 
-    if links.any?
+    if links
       dep_services = links.map do |link|
         "#{link['name']}".service
       end.join(' ')
@@ -52,7 +83,7 @@ class Service
 
     docker_rm = "-/usr/bin/docker rm #{name}"
     service_block = {
-      'ExecStartPre' => "-/usr/bin/docker pull #{from}",
+      'ExecStartPre' => "-/usr/bin/docker pull #{source}",
       'ExecStart' => docker_run_string,
       'ExecStartPost' => docker_rm,
       'ExecStop' => "-/usr/bin/docker kill #{name}",
@@ -122,12 +153,32 @@ before do
   headers 'Content-Type' => 'application/json'
 end
 
-get '/apps' do
-  fleet = Fleet.new(fleet_api_url: 'http://localhost:4001')
-  fleet.list_units.to_json
+get '/services/:id' do
 end
 
-post '/apps' do
+post '/services' do
   request.body.rewind
-  puts JSON.parse request.body.read
+  services = JSON.parse request.body.read
+  services["services"].map do |service|
+    service = Service.new(service)
+    service.load
+    service
+  end.each(&:run)
+  @@fleet.list_units.to_json
 end
+
+put '/services/:id' do
+  begin
+    Service.send(params[:action], params[:id])
+  end
+  204
+end
+
+delete '/services/:id' do
+  begin
+    Service.delete(params[:id])
+  rescue
+  end
+  204
+end
+
