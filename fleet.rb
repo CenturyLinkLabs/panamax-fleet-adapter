@@ -5,12 +5,14 @@ require "sinatra/reloader" if development?
 #set :port, ENV['PORT']
 set :bind, '0.0.0.0'
 
-@@fleet = Fleet.new(fleet_api_url: 'http://localhost:4001')
-
 class Service
 
   attr_accessor :name, :description, :source, :links, :command, :ports, 
     :expose, :environment, :volumes
+
+  def self.find(unit_name)
+    new('name' => unit_name)
+  end
 
   def initialize(attrs)
     self.name = attrs["name"]
@@ -25,27 +27,19 @@ class Service
   end
 
   def load
-    @@fleet.load(service_name, service_def)
+    fleet.load(service_name, service_def)
   end
 
   def start
-    @@fleet.start(service_name)
-  end
-
-  def self.start(unit_name)
-    new("name" => unit_name).start
+    fleet.start(service_name)
   end
 
   def stop
-    @@fleet.stop(service_name)
+    fleet.stop(service_name)
   end
 
-  def self.stop(unit_name)
-    new("name" => unit_name).stop
-  end
-
-  def self.delete(unit_name)
-    @@fleet.destroy(unit_name)
+  def status
+    fleet.status(service_name)
   end
 
   def service_name
@@ -147,6 +141,9 @@ class Service
     end
   end
 
+  def fleet
+    @fleet ||= Fleet.new(fleet_api_url: 'http://localhost:4001')
+  end
 end
 
 before do
@@ -158,25 +155,25 @@ end
 
 post '/services' do
   request.body.rewind
-  services = JSON.parse request.body.read
-  services["services"].map do |service|
-    service = Service.new(service)
-    service.load
-    service
-  end.each(&:run)
-  @@fleet.list_units.to_json
+  body = JSON.parse(request.body.read)
+
+  services = body['services'].map do |service|
+    Service.new(service).tap(&:load)
+  end.each(&:start)
+
+  services.map(&:service_name).to_json
 end
 
 put '/services/:id' do
   begin
-    Service.send(params[:action], params[:id])
+    Service.find(params[:id]).send(params[:action])
   end
   204
 end
 
 delete '/services/:id' do
   begin
-    Service.delete(params[:id])
+    Service.find(params[:id]).delete
   rescue
   end
   204
