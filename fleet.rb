@@ -42,6 +42,10 @@ class Service
     fleet.status(service_name)
   end
 
+  def destroy
+    fleet.destroy(service_name)
+  end
+
   def service_name
     name.end_with?(".service") ? name : "#{name}.service"
   end
@@ -142,7 +146,7 @@ class Service
   end
 
   def fleet
-    @fleet ||= Fleet.new(fleet_api_url: 'http://localhost:4001')
+    @fleet ||= Fleet.new(fleet_api_url: 'http://172.17.42.1:4001')
   end
 end
 
@@ -150,7 +154,13 @@ before do
   headers 'Content-Type' => 'application/json'
 end
 
+get '/services' do
+  fleet = Fleet.new(fleet_api_url: 'http://172.17.42.1:4001')
+  fleet.list_units.to_json
+end
+
 get '/services/:id' do
+  Service.find(params[:id]).status.to_json
 end
 
 post '/services' do
@@ -165,15 +175,25 @@ post '/services' do
 end
 
 put '/services/:id' do
-  begin
-    Service.find(params[:id]).send(params[:action])
+  request.body.rewind
+  body = JSON.parse(request.body.read)
+  puts body
+  service = Service.find(params[:id])
+
+  if body['desired_state'] == 'started'
+    service.start
+    204
+  elsif body['desired_state'] == 'stopped'
+    service.stop
+    204
+  else
+    400
   end
-  204
 end
 
 delete '/services/:id' do
   begin
-    Service.find(params[:id]).delete
+    Service.find(params[:id]).destroy
   rescue
   end
   204
