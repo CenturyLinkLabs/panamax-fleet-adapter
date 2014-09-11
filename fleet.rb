@@ -27,7 +27,7 @@ class Service
   end
 
   def load
-    fleet.load(service_name, service_def)
+    fleet.load(service_name, service_def, async=true)
   end
 
   def start
@@ -35,7 +35,7 @@ class Service
   end
 
   def stop
-    fleet.stop(service_name)
+    fleet.stop(service_name, async=true)
   end
 
   def status
@@ -43,7 +43,7 @@ class Service
   end
 
   def destroy
-    fleet.destroy(service_name)
+    fleet.destroy(service_name, async=true)
   end
 
   def service_name
@@ -146,7 +146,7 @@ class Service
   end
 
   def fleet
-    @fleet ||= Fleet.new(fleet_api_url: 'http://172.17.42.1:4001')
+    @fleet ||= Fleet.new(fleet_api_url: 'http://10.1.42.1:4001')
   end
 end
 
@@ -155,7 +155,7 @@ before do
 end
 
 get '/services' do
-  fleet = Fleet.new(fleet_api_url: 'http://172.17.42.1:4001')
+  fleet = Fleet.new(fleet_api_url: 'http://10.1.42.1:4001')
   fleet.list_units.to_json
 end
 
