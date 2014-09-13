@@ -7,7 +7,7 @@ set :bind, '0.0.0.0'
 
 class Service
 
-  attr_accessor :name, :description, :source, :links, :command, :ports, 
+  attr_accessor :name, :description, :source, :links, :command, :ports,
     :expose, :environment, :volumes
 
   def self.find(unit_name)
@@ -39,7 +39,7 @@ class Service
   end
 
   def status
-    fleet.status(service_name)
+    fleet.status(service_name)[:active_state]
   end
 
   def destroy
@@ -160,7 +160,12 @@ get '/services' do
 end
 
 get '/services/:id' do
-  Service.find(params[:id]).status.to_json
+  service = Service.find(params[:id])
+
+  {
+    id: service.name,
+    status: service.status
+  }.to_json
 end
 
 post '/services' do
