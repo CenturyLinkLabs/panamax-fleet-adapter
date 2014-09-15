@@ -38,8 +38,16 @@ class Service
     fleet.stop(service_name, async=true)
   end
 
+  # started, stopped, error
   def status
-    fleet.status(service_name)[:active_state]
+    case fleet.status(service_name)[:active_state]
+    when 'active'
+      'started'
+    when 'failed'
+      'stopped'
+    else
+      'error'
+    end
   end
 
   def destroy
