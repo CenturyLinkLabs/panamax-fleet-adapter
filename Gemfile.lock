@@ -1,12 +1,3 @@
-GIT
-  remote: https://github.com/CenturyLinkLabs/fleet-api.git
-  revision: a5042f10d5ec1a72cdc0c6ece762faa1a447b037
-  branch: chore/async
-  specs:
-    fleet-api (0.6.0)
-      faraday (= 0.8.9)
-      faraday_middleware (= 0.9.0)
-
 GEM
   remote: https://rubygems.org/
   specs:
@@ -15,6 +6,9 @@ GEM
       multipart-post (~> 1.2.0)
     faraday_middleware (0.9.0)
       faraday (>= 0.7.4, < 0.9)
+    fleet-api (0.6.1)
+      faraday (= 0.8.9)
+      faraday_middleware (= 0.9.0)
     multi_json (1.10.1)
     multipart-post (1.2.0)
     rack (1.5.2)
@@ -39,6 +33,6 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  fleet-api!
+  fleet-api (= 0.6.1)
   sinatra
   sinatra-contrib
