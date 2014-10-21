@@ -8,7 +8,8 @@ $: << File.expand_path('../', __FILE__)
 # Require base
 require 'sinatra/base'
 
-require 'app/routes/services'
+require 'app/models'
+require 'app/routes'
 
 module FleetAdapter
   class App < Sinatra::Application
@@ -17,6 +18,8 @@ module FleetAdapter
       disable :static
     end
 
-    use Services
+    use FleetAdapter::Routes::Services
   end
 end
+
+include FleetAdapter::Models

@@ -2,64 +2,54 @@ require 'app/models/service'
 require 'fleet'
 
 module FleetAdapter
-  class Services < Sinatra::Application
+  module Routes
+    class Services < Base
 
-    before do
-      headers 'Content-Type' => 'application/json'
-    end
+      post '/services' do
+        services = @payload.map do |service|
+          Service.create(service)
+        end
 
-    before do
-      @payload = JSON.parse(request.body.read) rescue nil
-    end
+        services.each(&:start)
 
-    error Fleet::NotFound do
-      status 404
-    end
+        result = services.map do |service|
+          { id: service.id }
+        end
 
-    post '/services' do
-      services = @payload.map do |service|
-        Service.create(service)
+        status 201
+        json result
       end
 
-      services.each(&:start)
+      get '/services/:id' do
+        service = Service.find(params[:id])
 
-      result = services.map do |service|
-        { id: service.id }
+        result = {
+          id: service.id,
+          'actualState' => service.status
+        }
+
+        json result
       end
 
-      status 201
-      json result
-    end
+      put '/services/:id' do
+        service = Service.find(params[:id])
 
-    get '/services/:id' do
-      service = Service.find(params[:id])
+        case @payload['desiredState']
+        when 'started'
+          service.start
+          status 204
+        when 'stopped'
+          service.stop
+          status 204
+        else
+          status 400
+        end
+      end
 
-      result = {
-        id: service.id,
-        'actualState' => service.status
-      }
-
-      json result
-    end
-
-    put '/services/:id' do
-      service = Service.find(params[:id])
-
-      case @payload['desiredState']
-      when 'started'
-        service.start
+      delete '/services/:id' do
+        Service.find(params[:id]).destroy
         status 204
-      when 'stopped'
-        service.stop
-        status 204
-      else
-        status 400
       end
-    end
-
-    delete '/services/:id' do
-      Service.find(params[:id]).destroy
-      status 204
     end
   end
 end
