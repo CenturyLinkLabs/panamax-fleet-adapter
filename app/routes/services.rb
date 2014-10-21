@@ -6,18 +6,11 @@ module FleetAdapter
     class Services < Base
 
       post '/services' do
-        services = @payload.map do |service|
-          Service.create(service)
-        end
-
+        services = Service.create_all(@payload)
         services.each(&:start)
 
-        result = services.map do |service|
-          { id: service.id }
-        end
-
         status 201
-        json result
+        json services.map { |service| { id: service.id } }
       end
 
       get '/services/:id' do

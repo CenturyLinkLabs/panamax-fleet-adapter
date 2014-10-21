@@ -4,8 +4,8 @@ module FleetAdapter
   module Models
     class Service
 
-      attr_accessor :id, :name, :description, :source, :links, :command, :ports,
-        :expose, :environment, :volumes
+      attr_accessor :id, :name, :source, :links, :command, :ports,
+        :expose, :environment, :volumes, :deployment
 
       attr_reader :status
 
@@ -13,21 +13,25 @@ module FleetAdapter
         new('id' => id).tap(&:refresh)
       end
 
+      def self.create_all(attrs)
+        attrs.map { |service_attrs| Service.new(service_attrs).tap(&:load) }
+      end
+
       def self.create(attrs)
         new(attrs).tap(&:load)
       end
 
       def initialize(attrs)
-        self.name = attrs['name']
-        self.id = attrs['id'] || (name.end_with?(".service") ? name : "#{name}.service")
-        self.description = attrs['description']
-        self.source = attrs['source']
-        self.links = attrs['links'] || []
-        self.command= attrs['command']
-        self.ports = attrs['ports'] || []
-        self.expose = attrs['expose'] || []
-        self.environment = attrs['environment'] || []
-        self.volumes = attrs['volumes'] || []
+        self.name = attrs[:name]
+        self.id = attrs[:id] || (name.end_with?(".service") ? name : "#{name}.service")
+        self.source = attrs[:source]
+        self.links = attrs[:links] || []
+        self.command= attrs[:command]
+        self.ports = attrs[:ports] || []
+        self.expose = attrs[:expose] || []
+        self.environment = attrs[:environment] || []
+        self.volumes = attrs[:volumes] || []
+        self.deployment = attrs[:deployment] || {}
       end
 
       def load
@@ -73,13 +77,11 @@ module FleetAdapter
       end
 
       def service_def
-        unit_block = {
-          'Description' => description
-        }
+        unit_block = {}
 
         if links
           dep_services = links.map do |link|
-            "#{link['name']}".service
+            "#{link[:name]}.service"
           end.join(' ')
 
           unit_block['After'] = dep_services
@@ -110,9 +112,9 @@ module FleetAdapter
         return unless links
         links.map do |link|
           option = '--link '
-          option << link['name']
+          option << link[:name]
           option << ':'
-          option << (link['alias'] ? link['alias'] : link['name'])
+          option << (link[:alias] ? link[:alias] : link[:name])
           option
         end
       end
@@ -121,13 +123,13 @@ module FleetAdapter
         return unless ports
         ports.map do |port|
           option = '-p '
-          if port['hostInterface'] || port['hostPort']
-            option << "#{port['hostInterface']}:" if port['hostInterface']
-            option << "#{port['hostPort']}" if port['hostport']
+          if port[:hostInterface] || port[:hostPort]
+            option << "#{port[:hostInterface]}:" if port[:hostInterface]
+            option << "#{port[:hostPort]}" if port[:hostport]
             option << ':'
           end
-          option << "#{port['containerPort']}"
-          option << '/udp' if port['protocol'] && port['protocol'].upcase == 'UDP'
+          option << "#{port[:containerPort]}"
+          option << '/udp' if port[:protocol] && port[:protocol].upcase == 'UDP'
           option
         end
       end
@@ -139,15 +141,15 @@ module FleetAdapter
 
       def environment_flags
         return unless environment
-        environment.map { |env| "-e \"#{env['variable']}=#{env['value']}\"" }
+        environment.map { |env| "-e \"#{env[:variable]}=#{env[:value]}\"" }
       end
 
       def volume_flags
         return unless volumes
         volumes.map do |volume|
           option = '-v '
-          option << "#{volume['hostPath']}:" if volume['hostPath'].present?
-          option << volume['containerPath']
+          option << "#{volume[:hostPath]}:" if volume[:hostPath].present?
+          option << volume[:containerPath]
           option
         end
       end
