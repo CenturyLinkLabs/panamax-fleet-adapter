@@ -14,16 +14,19 @@ module FleetAdapter
       end
 
       def self.create_all(attrs)
-        attrs.map { |service_attrs| Service.new(service_attrs).tap(&:load) }
+        attrs.map { |service_attrs| self.create(service_attrs) }.flatten
       end
 
       def self.create(attrs)
-        new(attrs).tap(&:load)
+        count = attrs.fetch(:deployment, {}).fetch(:count, 1)
+
+        count.times.map do |i|
+          new(attrs, i + 1).tap(&:load)
+        end
       end
 
-      def initialize(attrs)
-        self.name = attrs[:name]
-        self.id = attrs[:id] || (name.end_with?(".service") ? name : "#{name}.service")
+      def initialize(attrs, index=nil)
+        self.id = attrs[:id]
         self.source = attrs[:source]
         self.links = attrs[:links] || []
         self.command= attrs[:command]
@@ -32,6 +35,15 @@ module FleetAdapter
         self.environment = attrs[:environment] || []
         self.volumes = attrs[:volumes] || []
         self.deployment = attrs[:deployment] || {}
+
+        if index
+          self.name = "#{attrs[:name]}.#{index}"
+
+          unless id
+            self.id = "#{name}.service"
+          end
+        end
+
       end
 
       def load
@@ -100,9 +112,14 @@ module FleetAdapter
           'TimeoutStartSec' => '5min'
         }
 
+        fleet_block = {
+          'Conflicts' => id.gsub(/\.\d\./, ".*.")
+        }
+
         {
           'Unit' => unit_block,
-          'Service' => service_block
+          'Service' => service_block,
+          'X-Fleet' => fleet_block
         }
       end
 
