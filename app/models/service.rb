@@ -1,4 +1,5 @@
 require 'fleet'
+require 'pry'
 
 module FleetAdapter
   module Models
@@ -37,7 +38,7 @@ module FleetAdapter
         self.deployment = attrs[:deployment] || {}
 
         if index
-          self.name = "#{attrs[:name]}.#{index}"
+          self.name = "#{attrs[:name]}@#{index}"
 
           unless id
             self.id = "#{name}.service"
@@ -77,8 +78,7 @@ module FleetAdapter
         [
           '/usr/bin/docker run',
           '--rm',
-          "--name #{name}",
-          link_flags,
+          "--name #{name.split('@').first}",
           port_flags,
           expose_flags,
           environment_flags,
@@ -93,19 +93,22 @@ module FleetAdapter
 
         if links
           dep_services = links.map do |link|
-            "#{link[:name]}.service"
+            "#{link[:name]}@*.service"
           end.join(' ')
 
           unit_block['After'] = dep_services
           unit_block['Requires'] = dep_services
         end
 
-        docker_rm = "-/usr/bin/docker rm #{name}"
+        docker_rm = "-/usr/bin/docker rm #{name.split('@').first}"
+        scheme, ip_address, port = ENV['FLEETCTL_ENDPOINT'].gsub('//', '').split(':')
         service_block = {
+          # A hack to be able to have two ExecStartPre values
+          ExecStartPre: "-/bin/bash -c \"/usr/bin/etcdctl set app/#{name.upcase}_HOST #{ip_address} && /usr/bin/etcdctl set app/#{name.upcase}_PORT #{port}\"",
           'ExecStartPre' => "-/usr/bin/docker pull #{source}",
           'ExecStart' => docker_run_string,
           'ExecStartPost' => docker_rm,
-          'ExecStop' => "-/usr/bin/docker kill #{name}",
+          'ExecStop' => "-/usr/bin/docker kill #{name.split('@').first}",
           'ExecStopPost' => docker_rm,
           'Restart' => 'always',
           'RestartSec' => '10',
@@ -113,7 +116,7 @@ module FleetAdapter
         }
 
         fleet_block = {
-          'Conflicts' => id.gsub(/\.\d\./, ".*.")
+          'Conflicts' => id.gsub(/@\d\./, "@*.")
         }
 
         {
@@ -125,25 +128,13 @@ module FleetAdapter
 
       private
 
-      def link_flags
-        return unless links
-        links.map do |link|
-          option = '--link '
-          option << link[:name]
-          option << ':'
-          option << (link[:alias] ? link[:alias] : link[:name])
-          option
-        end
-      end
-
       def port_flags
         return unless ports
         ports.map do |port|
           option = '-p '
           if port[:hostInterface] || port[:hostPort]
             option << "#{port[:hostInterface]}:" if port[:hostInterface]
-            option << "#{port[:hostPort]}" if port[:hostport]
-            option << ':'
+            option << "#{port[:hostPort]}:" unless port[:hostPort].to_s.empty?
           end
           option << "#{port[:containerPort]}"
           option << '/udp' if port[:protocol] && port[:protocol].upcase == 'UDP'
@@ -157,7 +148,18 @@ module FleetAdapter
       end
 
       def environment_flags
-        return unless environment
+        # add environment variables for linked services for etcd discovery
+        attrs = %w(SERVICE_HOST SERVICE_PORT)
+
+        attrs.each do |attr|
+          links.each do |link|
+            option = {}
+            option[:variable] = (link[:alias] ? "#{link[:alias]}_#{attr}" : "#{link[:name]}_#{attr}").upcase
+            option[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_#{attr}`"
+            environment.push(option)
+          end
+        end
+
         environment.map { |env| "-e \"#{env[:variable]}=#{env[:value]}\"" }
       end
 

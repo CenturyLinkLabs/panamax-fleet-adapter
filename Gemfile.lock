@@ -2,6 +2,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     backports (3.6.0)
+    coderay (1.1.0)
     faraday (0.8.9)
       multipart-post (~> 1.2.0)
     faraday_middleware (0.9.0)
@@ -9,8 +10,15 @@ GEM
     fleet-api (0.6.1)
       faraday (= 0.8.9)
       faraday_middleware (= 0.9.0)
+    method_source (0.8.2)
     multi_json (1.10.1)
     multipart-post (1.2.0)
+    pry (0.10.1)
+      coderay (~> 1.1.0)
+      method_source (~> 0.8.1)
+      slop (~> 3.4)
+    pry-nav (0.2.4)
+      pry (>= 0.9.10, < 0.11.0)
     rack (1.5.2)
     rack-protection (1.5.3)
       rack
@@ -27,6 +35,7 @@ GEM
       rack-test
       sinatra (~> 1.4.0)
       tilt (~> 1.3)
+    slop (3.6.0)
     tilt (1.4.1)
 
 PLATFORMS
@@ -34,5 +43,7 @@ PLATFORMS
 
 DEPENDENCIES
   fleet-api (= 0.6.1)
+  pry
+  pry-nav
   sinatra
   sinatra-contrib

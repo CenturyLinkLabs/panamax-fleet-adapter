@@ -1,4 +1,5 @@
 require 'app/models/service'
+require 'app/models/service_sorter'
 require 'fleet'
 
 module FleetAdapter
@@ -6,7 +7,8 @@ module FleetAdapter
     class Services < Base
 
       post '/services' do
-        services = Service.create_all(@payload)
+        sorted_services = ServiceSorter.sort(@payload)
+        services = Service.create_all(sorted_services)
         services.each(&:start)
 
         status 201
