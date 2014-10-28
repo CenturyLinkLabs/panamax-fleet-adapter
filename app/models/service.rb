@@ -101,10 +101,20 @@ module FleetAdapter
         end
 
         docker_rm = "-/usr/bin/docker rm #{name.split('@').first}"
-        scheme, ip_address, port = ENV['FLEETCTL_ENDPOINT'].gsub('//', '').split(':')
-        service_block = {
+
+        # ip_address = host ip_address or name %H
+        # port = this container's min_port
+        service_block = {}
+
+        links.each do |link|
+          service_block[:Environment] = "\"SERVICE_HOST=`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_HOST`\""
+          service_block['Environment'] = "\"SERVICE_PORT=`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_PORT`\""
+        end
+
+        service_block.merge!({
           # A hack to be able to have two ExecStartPre values
-          ExecStartPre: "-/bin/bash -c \"/usr/bin/etcdctl set app/#{name.upcase}_HOST #{ip_address} && /usr/bin/etcdctl set app/#{name.upcase}_PORT #{port}\"",
+          'EnvironmentFile'=>'/etc/environment',
+          :ExecStartPre => "-/bin/bash -c \"/usr/bin/etcdctl set app/#{name.upcase}_SERVICE_HOST ${COREOS_PUBLIC_IPV4} && /usr/bin/etcdctl set app/#{name.upcase}_SERVICE_PORT #{min_port}\"",
           'ExecStartPre' => "-/usr/bin/docker pull #{source}",
           'ExecStart' => docker_run_string,
           'ExecStartPost' => docker_rm,
@@ -113,7 +123,7 @@ module FleetAdapter
           'Restart' => 'always',
           'RestartSec' => '10',
           'TimeoutStartSec' => '5min'
-        }
+        })
 
         fleet_block = {
           'Conflicts' => id.gsub(/@\d\./, "@*.")
@@ -128,7 +138,12 @@ module FleetAdapter
 
       private
 
+      def min_port
+        ports.sort_by { |port_binding| port_binding[:hostPort]}.first[:hostPort]
+      end
+
       def port_flags
+
         return unless ports
         ports.map do |port|
           option = '-p '
@@ -149,18 +164,26 @@ module FleetAdapter
 
       def environment_flags
         # add environment variables for linked services for etcd discovery
-        attrs = %w(SERVICE_HOST SERVICE_PORT)
 
-        attrs.each do |attr|
           links.each do |link|
-            option = {}
-            option[:variable] = (link[:alias] ? "#{link[:alias]}_#{attr}" : "#{link[:name]}_#{attr}").upcase
-            option[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_#{attr}`"
-            environment.push(option)
-          end
+
+            service_host, service_port, port = {}, {}, {}
+
+            service_host[:variable] = (link[:alias] ? "#{link[:alias]}_service_host" : "#{link[:name]}_service_host").upcase
+            service_host[:value] = "${SERVICE_HOST}"
+            environment.push(service_host)
+
+            service_port[:variable] = (link[:alias] ? "#{link[:alias]}_service_port" : "#{link[:name]}_service_port").upcase
+            service_port[:value] = "${SERVICE_PORT}"
+            environment.push(service_port)
+
+            port[:variable] = (link[:alias] ? "#{link[:alias]}_port" : "#{link[:name]}_port").upcase
+            port[:value] = "#{link[:protocol]}://${SERVICE_HOST}:${SERVICE_PORT}"
+            environment.push(port)
+
         end
 
-        environment.map { |env| "-e \"#{env[:variable]}=#{env[:value]}\"" }
+        environment.map { |env| "-e #{env[:variable]}=#{env[:value]}" }
       end
 
       def volume_flags

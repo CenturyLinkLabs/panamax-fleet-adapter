@@ -30,13 +30,22 @@ module FleetAdapter
           @temporary_marked.add(n[:name])
           @services.each do |service|
             if get_service_names_for(service[:links]).include?(n[:name])
-              n[:deployment][:count] = 1
+              n[:deployment][:count] = 1 if n[:deployment]
+
+              exposed_ports = n[:ports].map do |exposed_port|
+                { :port => exposed_port[:hostPort], :protocol=> (exposed_port[:protocol] || 'tcp') }
+              end
+
+              exposed_ports.merge!(n[:expose]).map { |exposed_port| {:port => exposed_port, :protocol => 'tcp'}} if n[:expose]
+
+              min_port = exposed_ports.sort_by{ |exposed_port| exposed_port[:port] }.first
+
+              service[:links].find{ |link| link[:name] == n[:name] }.merge!({:port => min_port[:port], :protocol => min_port[:protocol]})
               visit(service)
             end
           end
           @temporary_marked.delete(n[:name])
           @unmarked.delete(n)
-          #TODO add something to specify 1 count
           @sorted_services.insert(0, n)
         end
 
