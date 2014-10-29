@@ -158,7 +158,7 @@ module FleetAdapter
 
           links.each do |link|
 
-            service_host, service_port, port = {}, {}, {}
+            service_host, service_port, port, tcp, proto, tcp_port, addr = {}, {}, {}, {}, {}, {}, {}
 
             service_host[:variable] = (link[:alias] ? "#{link[:alias]}_service_host" : "#{link[:name]}_service_host").upcase
             service_host[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_HOST`"
@@ -172,7 +172,22 @@ module FleetAdapter
             port[:value] = "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_PORT`"
             environment.push(port)
 
-        end
+            tcp[:variable] = (link[:alias] ? "#{link[:alias]}_port_#{link[:port]}_#{link[:protocol]}" : "#{link[:name]}_port_#{link[:port]}_#{link[:protocol]}").upcase
+            tcp[:value] = "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_PORT`"
+            environment.push(tcp)
+
+            proto[:variable] = (link[:alias] ? "#{link[:alias]}_port_#{link[:port]}_#{link[:protocol]}_proto" : "#{link[:name]}_port_#{link[:port]}_#{link[:protocol]}_proto").upcase
+            proto[:value] = link[:protocol]
+            environment.push(proto)
+
+            tcp_port[:variable] = (link[:alias] ? "#{link[:alias]}_port_#{link[:port]}_#{link[:protocol]}_port" : "#{link[:name]}_port_#{link[:port]}_#{link[:protocol]}_port").upcase
+            tcp_port[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_PORT`"
+            environment.push(tcp_port)
+
+            addr[:variable] = (link[:alias] ? "#{link[:alias]}_port_#{link[:port]}_#{link[:protocol]}_addr" : "#{link[:name]}_port_#{link[:port]}_#{link[:protocol]}_addr").upcase
+            addr[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_HOST`"
+            environment.push(addr)
+          end
 
         environment.map { |env| "-e #{env[:variable]}=#{env[:value]}" }
       end
