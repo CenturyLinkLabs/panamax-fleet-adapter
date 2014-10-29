@@ -38,7 +38,7 @@ module FleetAdapter
         self.deployment = attrs[:deployment] || {}
 
         if index
-          self.name = "#{attrs[:name]}@#{index}"
+          self.name = self.deployment[:count] == 1 ? attrs[:name] : "#{attrs[:name]}@#{index}"
 
           unless id
             self.id = "#{name}.service"
@@ -93,24 +93,14 @@ module FleetAdapter
 
         if links
           dep_services = links.map do |link|
-            "#{link[:name]}@*.service"
+            "#{link[:name]}.service"
           end.join(' ')
 
           unit_block['After'] = dep_services
-          unit_block['Requires'] = dep_services
+          unit_block['Wants'] = dep_services
         end
 
         docker_rm = "-/usr/bin/docker rm #{name.split('@').first}"
-
-        # ip_address = host ip_address or name %H
-        # port = this container's min_port
-        # service_block = {}
-        #
-        # links.each do |link|
-        #   # force fleet to run this in bin/bash/
-        #   service_block[:Environment] = "\"SERVICE_HOST=`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_HOST`\""
-        #   service_block['Environment'] = "\"SERVICE_PORT=`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_PORT`\""
-        # end
 
         service_block = {
           # A hack to be able to have two ExecStartPre values
@@ -171,15 +161,15 @@ module FleetAdapter
             service_host, service_port, port = {}, {}, {}
 
             service_host[:variable] = (link[:alias] ? "#{link[:alias]}_service_host" : "#{link[:name]}_service_host").upcase
-            service_host[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_HOST`"
+            service_host[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_HOST`"
             environment.push(service_host)
 
             service_port[:variable] = (link[:alias] ? "#{link[:alias]}_service_port" : "#{link[:name]}_service_port").upcase
-            service_port[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_PORT`"
+            service_port[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_PORT`"
             environment.push(service_port)
 
             port[:variable] = (link[:alias] ? "#{link[:alias]}_port" : "#{link[:name]}_port").upcase
-            port[:value] = "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_PORT`"
+            port[:value] = "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_PORT`"
             environment.push(port)
 
         end

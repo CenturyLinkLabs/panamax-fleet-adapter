@@ -6,7 +6,7 @@ module FleetAdapter
   module Routes
     class Services < Base
 
-      post '/services' do
+      post "/#{API_VERSION}/services" do
         sorted_services = ServiceSorter.sort(@payload)
         services = Service.create_all(sorted_services)
         services.each(&:start)
@@ -15,7 +15,7 @@ module FleetAdapter
         json services.map { |service| { id: service.id } }
       end
 
-      get '/services/:id' do
+      get "/#{API_VERSION}/services/:id" do
         service = Service.find(params[:id])
 
         result = {
@@ -26,7 +26,7 @@ module FleetAdapter
         json result
       end
 
-      put '/services/:id' do
+      put "/#{API_VERSION}/services/:id" do
         service = Service.find(params[:id])
 
         case @payload['desiredState']
@@ -41,7 +41,8 @@ module FleetAdapter
         end
       end
 
-      delete '/services/:id' do
+      # make sure to delete all loaded jobs, not just launched units
+      delete "/#{API_VERSION}/services/:id" do
         Service.find(params[:id]).destroy
         status 204
       end
