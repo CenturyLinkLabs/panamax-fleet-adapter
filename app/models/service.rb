@@ -104,26 +104,27 @@ module FleetAdapter
 
         # ip_address = host ip_address or name %H
         # port = this container's min_port
-        service_block = {}
+        # service_block = {}
+        #
+        # links.each do |link|
+        #   # force fleet to run this in bin/bash/
+        #   service_block[:Environment] = "\"SERVICE_HOST=`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_HOST`\""
+        #   service_block['Environment'] = "\"SERVICE_PORT=`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_PORT`\""
+        # end
 
-        links.each do |link|
-          service_block[:Environment] = "\"SERVICE_HOST=`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_HOST`\""
-          service_block['Environment'] = "\"SERVICE_PORT=`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_PORT`\""
-        end
-
-        service_block.merge!({
+        service_block = {
           # A hack to be able to have two ExecStartPre values
           'EnvironmentFile'=>'/etc/environment',
           :ExecStartPre => "-/bin/bash -c \"/usr/bin/etcdctl set app/#{name.upcase}_SERVICE_HOST ${COREOS_PUBLIC_IPV4} && /usr/bin/etcdctl set app/#{name.upcase}_SERVICE_PORT #{min_port}\"",
           'ExecStartPre' => "-/usr/bin/docker pull #{source}",
-          'ExecStart' => docker_run_string,
+          'ExecStart' => "-/bin/bash -c \"#{docker_run_string}\"",
           'ExecStartPost' => docker_rm,
           'ExecStop' => "-/usr/bin/docker kill #{name.split('@').first}",
           'ExecStopPost' => docker_rm,
           'Restart' => 'always',
           'RestartSec' => '10',
           'TimeoutStartSec' => '5min'
-        })
+        }
 
         fleet_block = {
           'Conflicts' => id.gsub(/@\d\./, "@*.")
@@ -170,15 +171,15 @@ module FleetAdapter
             service_host, service_port, port = {}, {}, {}
 
             service_host[:variable] = (link[:alias] ? "#{link[:alias]}_service_host" : "#{link[:name]}_service_host").upcase
-            service_host[:value] = "${SERVICE_HOST}"
+            service_host[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_HOST`"
             environment.push(service_host)
 
             service_port[:variable] = (link[:alias] ? "#{link[:alias]}_service_port" : "#{link[:name]}_service_port").upcase
-            service_port[:value] = "${SERVICE_PORT}"
+            service_port[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_PORT`"
             environment.push(service_port)
 
             port[:variable] = (link[:alias] ? "#{link[:alias]}_port" : "#{link[:name]}_port").upcase
-            port[:value] = "#{link[:protocol]}://${SERVICE_HOST}:${SERVICE_PORT}"
+            port[:value] = "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link[:name].upcase}@1_SERVICE_PORT`"
             environment.push(port)
 
         end
