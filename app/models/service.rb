@@ -11,7 +11,7 @@ module FleetAdapter
       attr_reader :status
 
       def self.find(id)
-        new('id' => id).tap(&:refresh)
+        new(id: id).tap(&:refresh)
       end
 
       def self.create_all(attrs)
@@ -38,7 +38,11 @@ module FleetAdapter
         self.deployment = attrs[:deployment] || {}
 
         if index
-          self.name = self.deployment[:count] == 1 ? attrs[:name] : "#{attrs[:name]}@#{index}"
+          if self.deployment[:count] && self.deployment.count != 1
+            self.name = "#{attrs[:name]}@#{index}"
+          else
+            self.name = attrs[:name]
+          end
 
           unless id
             self.id = "#{name}.service"

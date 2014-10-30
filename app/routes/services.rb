@@ -29,7 +29,7 @@ module FleetAdapter
       put "/#{API_VERSION}/services/:id" do
         service = Service.find(params[:id])
 
-        case @payload['desiredState']
+        case @payload[:desiredState]
         when 'started'
           service.start
           status 204
@@ -41,7 +41,6 @@ module FleetAdapter
         end
       end
 
-      # make sure to delete all loaded jobs, not just launched units
       delete "/#{API_VERSION}/services/:id" do
         Service.find(params[:id]).destroy
         status 204
