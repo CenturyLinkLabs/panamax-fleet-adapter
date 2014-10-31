@@ -1,5 +1,7 @@
 require 'its'
 require 'rack/test'
+require 'simplecov'
+SimpleCov.start
 
 require File.expand_path '../../app.rb', __FILE__
 

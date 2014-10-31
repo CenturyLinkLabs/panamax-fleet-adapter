@@ -8,8 +8,10 @@ gem 'fleet-api', '0.6.1', require: 'fleet'
 group :test do
   gem 'rspec'
   gem 'its'
+  gem 'simplecov'
 end
 
-gem 'pry'
-# gem 'pry-debugger', '~> 0.2.3'
-gem 'pry-nav'
+group :development do
+  gem 'pry', require: false
+  gem 'pry-nav', require: false
+end

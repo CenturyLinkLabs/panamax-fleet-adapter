@@ -1,12 +1,11 @@
 require 'fleet'
-require 'pry'
 
 module FleetAdapter
   module Models
     class Service
 
       attr_accessor :id, :name, :source, :links, :command, :ports,
-        :expose, :environment, :volumes, :deployment
+        :expose, :environment, :volumes, :deployment, :prefix
 
       attr_reader :status
 
@@ -19,7 +18,7 @@ module FleetAdapter
       end
 
       def self.create(attrs)
-        count = attrs.fetch(:deployment, {}).fetch(:count, 1)
+        count = attrs.fetch(:deployment, {}).fetch(:count, 1).to_i
 
         count.times.map do |i|
           new(attrs, i + 1).tap(&:load)
@@ -27,7 +26,6 @@ module FleetAdapter
       end
 
       def initialize(attrs, index=nil)
-        self.id = attrs[:id]
         self.source = attrs[:source]
         self.links = attrs[:links] || []
         self.command= attrs[:command]
@@ -36,19 +34,19 @@ module FleetAdapter
         self.environment = attrs[:environment] || []
         self.volumes = attrs[:volumes] || []
         self.deployment = attrs[:deployment] || {}
+        self.prefix = attrs[:name]
 
-        if index
-          if self.deployment[:count] && self.deployment.count != 1
-            self.name = "#{attrs[:name]}@#{index}"
-          else
-            self.name = attrs[:name]
-          end
-
-          unless id
-            self.id = "#{name}.service"
-          end
+        if self.deployment[:count] && self.deployment[:count] != 1
+          self.name = "#{attrs[:name]}@#{index}"
+        else
+          self.name = attrs[:name]
         end
 
+        if attrs[:id]
+          self.id = attrs[:id]
+        else
+          self.id = "#{name}.service"
+        end
       end
 
       def load
@@ -78,6 +76,52 @@ module FleetAdapter
         end
       end
 
+      private
+
+      def service_def
+        {
+          'Unit' => unit_block,
+          'Service' => service_block,
+          'X-Fleet' => fleet_block
+        }
+      end
+
+      def unit_block
+        unit_block = {}
+
+        if links.length >= 1
+          dependencies = links.map do |link|
+            "#{link[:name]}.service"
+          end.join(' ')
+
+          unit_block['After'] = dependencies
+          unit_block['Wants'] = dependencies
+        end
+
+        return unit_block
+      end
+
+      def service_block
+        docker_rm = "-/usr/bin/docker rm #{prefix}"
+        {
+          # A hack to be able to have two ExecStartPre values
+          'EnvironmentFile'=>'/etc/environment',
+          :ExecStartPre => "-/bin/bash -c \"/usr/bin/etcdctl set app/#{name.upcase}_SERVICE_HOST ${COREOS_PUBLIC_IPV4} && /usr/bin/etcdctl set app/#{name.upcase}_SERVICE_PORT #{min_port}\"",
+          'ExecStartPre' => "-/usr/bin/docker pull #{source}",
+          'ExecStart' => "-/bin/bash -c \"#{docker_run_string}\"",
+          'ExecStartPost' => docker_rm,
+          'ExecStop' => "-/usr/bin/docker kill #{prefix}",
+          'ExecStopPost' => docker_rm,
+          'Restart' => 'always',
+          'RestartSec' => '10',
+          'TimeoutStartSec' => '5min'
+        }
+      end
+
+      def fleet_block
+        { 'Conflicts' => id.gsub(/@\d\./, "@*.") }
+      end
+
       def docker_run_string
         [
           '/usr/bin/docker run',
@@ -86,60 +130,20 @@ module FleetAdapter
           port_flags,
           expose_flags,
           environment_flags,
+          link_flags,
           volume_flags,
           source,
           command
         ].flatten.compact.join(' ').strip
       end
 
-      def service_def
-        unit_block = {}
-
-        if links
-          dep_services = links.map do |link|
-            "#{link[:name]}.service"
-          end.join(' ')
-
-          unit_block['After'] = dep_services
-          unit_block['Wants'] = dep_services
-        end
-
-        docker_rm = "-/usr/bin/docker rm #{name.split('@').first}"
-
-        service_block = {
-          # A hack to be able to have two ExecStartPre values
-          'EnvironmentFile'=>'/etc/environment',
-          :ExecStartPre => "-/bin/bash -c \"/usr/bin/etcdctl set app/#{name.upcase}_SERVICE_HOST ${COREOS_PUBLIC_IPV4} && /usr/bin/etcdctl set app/#{name.upcase}_SERVICE_PORT #{min_port}\"",
-          'ExecStartPre' => "-/usr/bin/docker pull #{source}",
-          'ExecStart' => "-/bin/bash -c \"#{docker_run_string}\"",
-          'ExecStartPost' => docker_rm,
-          'ExecStop' => "-/usr/bin/docker kill #{name.split('@').first}",
-          'ExecStopPost' => docker_rm,
-          'Restart' => 'always',
-          'RestartSec' => '10',
-          'TimeoutStartSec' => '5min'
-        }
-
-        fleet_block = {
-          'Conflicts' => id.gsub(/@\d\./, "@*.")
-        }
-
-        {
-          'Unit' => unit_block,
-          'Service' => service_block,
-          'X-Fleet' => fleet_block
-        }
-      end
-
-      private
-
       def min_port
         ports.sort_by { |port_binding| port_binding[:hostPort]}.first[:hostPort]
       end
 
       def port_flags
-
         return unless ports
+
         ports.map do |port|
           option = '-p '
           if port[:hostInterface] || port[:hostPort]
@@ -157,42 +161,50 @@ module FleetAdapter
         expose.map { |exposed_port| "--expose #{exposed_port}" }
       end
 
-      def environment_flags
+      def link_flags
+        link_vars = []
+
         # add environment variables for linked services for etcd discovery
+        links.each do |link|
+          link_alias = link[:alias].upcase if link[:alias]
+          link_name = link[:name].upcase
 
-          links.each do |link|
+          link_vars.push(
+            {
+              variable: (link_alias ? "#{link_alias}_SERVICE_HOST" : "#{link_name}_SERVICE_HOST").upcase,
+              value: "`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_HOST`"
+            },
+            {
+              variable: (link_alias ? "#{link_alias}_SERVICE_PORT" : "#{link_name}_SERVICE_PORT").upcase,
+              value: "`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_PORT`"
+            },
+            {
+              variable: (link_alias ? "#{link_alias}_PORT" : "#{link_name}_PORT").upcase,
+              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_PORT`"
+            },
+            {
+              variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}").upcase,
+              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_PORT`"
+            },
+            {
+              variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_PROTO" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_PROTO").upcase,
+              value: link[:protocol]
+            },
+            {
+              variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_PORT" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_PORT").upcase,
+              value: "`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_PORT`"
+            },
+            {
+              variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_ADDR" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_ADDR").upcase,
+              value: "`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_HOST`"
+            }
+          )
+        end
 
-            service_host, service_port, port, tcp, proto, tcp_port, addr = {}, {}, {}, {}, {}, {}, {}
+        link_vars.map { |link| "-e #{link[:variable]}=#{link[:value]}" }
+      end
 
-            service_host[:variable] = (link[:alias] ? "#{link[:alias]}_service_host" : "#{link[:name]}_service_host").upcase
-            service_host[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_HOST`"
-            environment.push(service_host)
-
-            service_port[:variable] = (link[:alias] ? "#{link[:alias]}_service_port" : "#{link[:name]}_service_port").upcase
-            service_port[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_PORT`"
-            environment.push(service_port)
-
-            port[:variable] = (link[:alias] ? "#{link[:alias]}_port" : "#{link[:name]}_port").upcase
-            port[:value] = "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_PORT`"
-            environment.push(port)
-
-            tcp[:variable] = (link[:alias] ? "#{link[:alias]}_port_#{link[:port]}_#{link[:protocol]}" : "#{link[:name]}_port_#{link[:port]}_#{link[:protocol]}").upcase
-            tcp[:value] = "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_PORT`"
-            environment.push(tcp)
-
-            proto[:variable] = (link[:alias] ? "#{link[:alias]}_port_#{link[:port]}_#{link[:protocol]}_proto" : "#{link[:name]}_port_#{link[:port]}_#{link[:protocol]}_proto").upcase
-            proto[:value] = link[:protocol]
-            environment.push(proto)
-
-            tcp_port[:variable] = (link[:alias] ? "#{link[:alias]}_port_#{link[:port]}_#{link[:protocol]}_port" : "#{link[:name]}_port_#{link[:port]}_#{link[:protocol]}_port").upcase
-            tcp_port[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_PORT`"
-            environment.push(tcp_port)
-
-            addr[:variable] = (link[:alias] ? "#{link[:alias]}_port_#{link[:port]}_#{link[:protocol]}_addr" : "#{link[:name]}_port_#{link[:port]}_#{link[:protocol]}_addr").upcase
-            addr[:value] = "`/usr/bin/etcdctl get app/#{link[:name].upcase}_SERVICE_HOST`"
-            environment.push(addr)
-          end
-
+      def environment_flags
         environment.map { |env| "-e #{env[:variable]}=#{env[:value]}" }
       end
 
@@ -200,7 +212,7 @@ module FleetAdapter
         return unless volumes
         volumes.map do |volume|
           option = '-v '
-          option << "#{volume[:hostPath]}:" if volume[:hostPath].present?
+          option << "#{volume[:hostPath]}:" unless volume[:hostPath] == nil || volume[:hostPath] == ''
           option << volume[:containerPath]
           option
         end

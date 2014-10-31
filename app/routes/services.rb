@@ -10,7 +10,6 @@ module FleetAdapter
         sorted_services = ServiceSorter.sort(@payload)
         services = Service.create_all(sorted_services)
         services.each(&:start)
-
         status 201
         json services.map { |service| { id: service.id } }
       end
