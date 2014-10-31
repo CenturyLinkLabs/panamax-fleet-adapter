@@ -1,9 +1,14 @@
 require 'rubygems'
 require 'bundler'
+require 'fleet'
 
 # Setup load paths
 Bundler.require
 $: << File.expand_path('../', __FILE__)
+
+Fleet.configure do |config|
+  config.fleet_api_url = ENV['FLEETCTL_ENDPOINT']
+end
 
 # Require base
 require 'sinatra/base'
@@ -18,6 +23,7 @@ module FleetAdapter
       disable :static
     end
 
+    use FleetAdapter::Routes::Healthcheck
     use FleetAdapter::Routes::Services
   end
 end
