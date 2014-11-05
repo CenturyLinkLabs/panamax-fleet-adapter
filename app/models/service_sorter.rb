@@ -43,8 +43,6 @@ module FleetAdapter
             @unmarked.delete(n)
             @sorted_services.insert(0, n)
           end
-
-          return @sorted_services
         end
 
         def get_service_names_for(links)
