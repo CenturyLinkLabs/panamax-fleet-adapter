@@ -4,6 +4,8 @@ module FleetAdapter
   module Models
     class Service
 
+      MAX_PORT = 65536
+
       attr_accessor :id, :name, :source, :links, :command, :ports,
         :expose, :environment, :volumes, :deployment, :prefix
 
@@ -103,10 +105,14 @@ module FleetAdapter
 
       def service_block
         docker_rm = "-/usr/bin/docker rm #{prefix}"
+        service_registration = "/usr/bin/etcdctl set app/#{name.upcase}_SERVICE_HOST ${COREOS_PUBLIC_IPV4}"
+        if min_port
+          service_registration += " && /usr/bin/etcdctl set app/#{name.upcase}_SERVICE_PORT #{min_port}"
+        end
         {
           # A hack to be able to have two ExecStartPre values
           'EnvironmentFile'=>'/etc/environment',
-          :ExecStartPre => "-/bin/bash -c \"/usr/bin/etcdctl set app/#{name.upcase}_SERVICE_HOST ${COREOS_PUBLIC_IPV4} && /usr/bin/etcdctl set app/#{name.upcase}_SERVICE_PORT #{min_port}\"",
+          :ExecStartPre => "-/bin/bash -c \"#{service_registration}\"",
           'ExecStartPre' => "-/usr/bin/docker pull #{source}",
           'ExecStart' => "-/bin/bash -c \"#{docker_run_string}\"",
           'ExecStartPost' => docker_rm,
@@ -138,7 +144,10 @@ module FleetAdapter
       end
 
       def min_port
-        ports.sort_by { |port_binding| port_binding[:hostPort]}.first[:hostPort]
+        min_port = ports.empty? ? MAX_PORT : ports.sort_by { |port_binding| port_binding[:hostPort]}.first[:hostPort]
+        min_exposed = expose.sort.first || MAX_PORT
+        val = [min_port.to_i, min_exposed.to_i].min
+        val unless val == MAX_PORT
       end
 
       def port_flags

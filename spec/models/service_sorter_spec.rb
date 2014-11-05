@@ -65,6 +65,18 @@ describe FleetAdapter::Models::ServiceSorter do
       end
 
     end
+
+    context 'when a dependency does not expose a port through expose or port bindings' do
+      before do
+        @db_service = services.find { |service| service[:name] == 'DB' }
+        @db_service[:expose] = []
+        @db_service[:ports] = []
+      end
+
+      it 'raises an exception' do
+        expect{ described_class.sort(services) }.to raise_error(ArgumentError, /does not expose a port/)
+      end
+    end
   end
 
   describe '.get_service_names_for' do

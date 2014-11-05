@@ -59,10 +59,12 @@ module FleetAdapter
 
         # Sets the minimum port and its protocol on the service link to a dependency
         def set_link_port_and_protocol(service, dependency)
-          return unless service[:links]
+          return if service[:links].to_a.empty?
 
           exposed_ports = ports_and_protocols_for(dependency)
-          min_port = exposed_ports.sort_by { |exposed_port| exposed_port[:port] }.first
+          unless min_port = exposed_ports.sort_by { |exposed_port| exposed_port[:port] }.first
+            raise ArgumentError, "#{dependency[:name]} does not expose a port"
+          end
 
           service[:links].find { |link| link[:name] == dependency[:name] }
                          .merge!({ port: min_port[:port], protocol: min_port[:protocol] })

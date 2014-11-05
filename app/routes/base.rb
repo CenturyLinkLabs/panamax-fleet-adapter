@@ -18,6 +18,10 @@ module FleetAdapter
         status 404
       end
 
+      error ArgumentError do
+        [422, {'Content-Type' => 'application/json'}, { error: env['sinatra.error'].message }.to_json ]
+      end
+
       private
 
       def symbolize_keys(obj)

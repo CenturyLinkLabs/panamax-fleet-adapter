@@ -45,6 +45,26 @@ describe FleetAdapter::Routes::Services do
       post '/v1/services', request_body
       expect(last_response.status).to eq 201
     end
+
+    context 'when a dependency has no exposed ports' do
+      let(:request_body) do
+        [
+            { name: 'service', source: 'foo/bar', links: [{ name: 'dependency' }] },
+            { name: 'dependency', source: 'bar/foo' }
+        ].to_json
+      end
+
+      it 'returns a 422 status' do
+        post '/v1/services', request_body
+        expect(last_response.status).to eq 422
+      end
+
+      it 'includes an error message indicating the service should expose a port' do
+        expected = { error: 'dependency does not expose a port' }.to_json
+        post '/v1/services', request_body
+        expect(last_response.body).to eq expected
+      end
+    end
   end
 
   describe 'GET /services/:id' do
