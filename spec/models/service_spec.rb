@@ -228,7 +228,7 @@ describe FleetAdapter::Models::Service do
 
     context 'when the service specifies environment vars' do
       it 'generates a docker command with -e' do
-        expect(subject.send(:docker_run_string)).to include '-e DB_PASSWORD=password'
+        expect(subject.send(:docker_run_string)).to include "-e 'DB_PASSWORD=password'"
       end
     end
 

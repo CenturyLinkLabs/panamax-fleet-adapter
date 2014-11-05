@@ -91,7 +91,7 @@ module FleetAdapter
       def unit_block
         unit_block = {}
 
-        if links.length >= 1
+        unless links.empty?
           dependencies = links.map do |link|
             "#{link[:name]}.service"
           end.join(' ')
@@ -106,17 +106,21 @@ module FleetAdapter
       def service_block
         docker_rm = "-/usr/bin/docker rm #{prefix}"
         service_registration = "/usr/bin/etcdctl set app/#{name.upcase}_SERVICE_HOST ${COREOS_PUBLIC_IPV4}"
+        service_deregistration = "/usr/bin/etcdctl rm app/#{name.upcase}_SERVICE_HOST"
         if min_port
-          service_registration += " && /usr/bin/etcdctl set app/#{name.upcase}_SERVICE_PORT #{min_port}"
+          service_registration += " ; /usr/bin/etcdctl set app/#{name.upcase}_SERVICE_PORT #{min_port}"
+          service_deregistration += " ; /usr/bin/etcdctl rm app/#{name.upcase}_SERVICE_PORT"
         end
+
         {
           # A hack to be able to have two ExecStartPre values
           'EnvironmentFile'=>'/etc/environment',
-          :ExecStartPre => "-/bin/bash -c \"#{service_registration}\"",
+          :ExecStartPre => "#{service_registration}",
           'ExecStartPre' => "-/usr/bin/docker pull #{source}",
           'ExecStart' => "-/bin/bash -c \"#{docker_run_string}\"",
           'ExecStartPost' => docker_rm,
           'ExecStop' => "-/usr/bin/docker kill #{prefix}",
+          :ExecStopPost => "#{service_deregistration}",
           'ExecStopPost' => docker_rm,
           'Restart' => 'always',
           'RestartSec' => '10',
@@ -171,6 +175,7 @@ module FleetAdapter
       end
 
       def link_flags
+        return unless links
         link_vars = []
 
         # add environment variables for linked services for etcd discovery
@@ -214,7 +219,8 @@ module FleetAdapter
       end
 
       def environment_flags
-        environment.map { |env| "-e #{env[:variable]}=#{env[:value]}" }
+        return unless environment
+        environment.map { |env| "-e \'#{env[:variable]}=#{env[:value]}\'" }
       end
 
       def volume_flags
