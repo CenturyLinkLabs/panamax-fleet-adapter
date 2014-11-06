@@ -10,6 +10,7 @@ require 'sinatra/base'
 
 require 'app/models'
 require 'app/routes'
+require 'app/utils'
 
 module FleetAdapter
   class App < Sinatra::Application

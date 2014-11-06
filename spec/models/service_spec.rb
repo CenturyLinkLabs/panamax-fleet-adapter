@@ -1,6 +1,8 @@
 require_relative '../spec_helper'
+require_relative '../../app/utils'
 
 describe FleetAdapter::Models::Service do
+  using FleetAdapter::StringExtensions
 
   let(:attrs) do
     {
@@ -47,7 +49,7 @@ describe FleetAdapter::Models::Service do
     context 'when no attrs are specified' do
       subject { described_class.new({}, 1) }
 
-      its(:name) { is_expected.to be_nil }
+      its(:name) { is_expected.to be_empty }
       its(:source) { is_expected.to be_nil }
       its(:command) { is_expected.to be_nil }
       its(:expose) { is_expected.to eq [] }
@@ -66,6 +68,13 @@ describe FleetAdapter::Models::Service do
       its(:volumes) { is_expected.to eq attrs[:volumes] }
       its(:links) { is_expected.to eq attrs[:links] }
       its(:deployment) { is_expected.to eq attrs[:deployment] }
+    end
+
+    context 'when the name has a space' do
+      subject { described_class.new({ name: 'foo bar', deployment: { count: 1 } }, 1) }
+      it 'replaces spaces with underscores' do
+        expect(subject.name).to eq('foo-bar')
+      end
     end
 
     context 'when index is specified' do
@@ -242,6 +251,11 @@ describe FleetAdapter::Models::Service do
         expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT_3306_TCP_ADDR=`/usr/bin/etcdctl get app/DB_SERVICE_HOST`'
         expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT_3306_TCP=tcp://`/usr/bin/etcdctl get app/DB_SERVICE_HOST`:`/usr/bin/etcdctl get app/DB_SERVICE_PORT`'
         expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT_3306_TCP_PORT=`/usr/bin/etcdctl get app/DB_SERVICE_PORT`'
+      end
+
+      it 'sanitizes the link names when creating the env vars' do
+        subject.links = [{ name: 'db_@:.-', alias: 'db_1', protocol: 'tcp', port: 3306 }]
+        expect(subject.send(:docker_run_string)).to include '-e DB_1_SERVICE_HOST=`/usr/bin/etcdctl get app/DB-----_SERVICE_HOST`'
       end
     end
 

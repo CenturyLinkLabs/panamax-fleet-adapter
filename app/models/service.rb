@@ -4,6 +4,8 @@ module FleetAdapter
   module Models
     class Service
 
+      using FleetAdapter::StringExtensions
+
       MAX_PORT = 65536
 
       attr_accessor :id, :name, :source, :links, :command, :ports,
@@ -28,6 +30,7 @@ module FleetAdapter
       end
 
       def initialize(attrs, index=nil)
+        self.name = attrs[:name].to_s.sanitize
         self.source = attrs[:source]
         self.links = attrs[:links] || []
         self.command= attrs[:command]
@@ -36,13 +39,9 @@ module FleetAdapter
         self.environment = attrs[:environment] || []
         self.volumes = attrs[:volumes] || []
         self.deployment = attrs[:deployment] || {}
-        self.prefix = attrs[:name]
+        self.prefix = self.name
 
-        if self.deployment[:count] && self.deployment[:count] != 1
-          self.name = "#{attrs[:name]}@#{index}"
-        else
-          self.name = attrs[:name]
-        end
+        self.name += "@#{index}" if self.deployment[:count] && self.deployment[:count] != 1
 
         if attrs[:id]
           self.id = attrs[:id]
@@ -93,7 +92,7 @@ module FleetAdapter
 
         unless links.empty?
           dependencies = links.map do |link|
-            "#{link[:name]}.service"
+            "#{link[:name].sanitize}.service"
           end.join(' ')
 
           unit_block['After'] = dependencies
@@ -181,24 +180,24 @@ module FleetAdapter
         # add environment variables for linked services for etcd discovery
         links.each do |link|
           link_alias = link[:alias].upcase if link[:alias]
-          link_name = link[:name].upcase
+          link_name = link[:name].sanitize.upcase
 
           link_vars.push(
             {
               variable: (link_alias ? "#{link_alias}_SERVICE_HOST" : "#{link_name}_SERVICE_HOST").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_HOST`"
+              value: "`/usr/bin/etcdctl get app/#{link_name}_SERVICE_HOST`"
             },
             {
               variable: (link_alias ? "#{link_alias}_SERVICE_PORT" : "#{link_name}_SERVICE_PORT").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_PORT`"
+              value: "`/usr/bin/etcdctl get app/#{link_name}_SERVICE_PORT`"
             },
             {
               variable: (link_alias ? "#{link_alias}_PORT" : "#{link_name}_PORT").upcase,
-              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_PORT`"
+              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name}_SERVICE_PORT`"
             },
             {
               variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}").upcase,
-              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_PORT`"
+              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name}_SERVICE_PORT`"
             },
             {
               variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_PROTO" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_PROTO").upcase,
@@ -206,11 +205,11 @@ module FleetAdapter
             },
             {
               variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_PORT" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_PORT").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_PORT`"
+              value: "`/usr/bin/etcdctl get app/#{link_name}_SERVICE_PORT`"
             },
             {
               variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_ADDR" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_ADDR").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name.upcase}_SERVICE_HOST`"
+              value: "`/usr/bin/etcdctl get app/#{link_name}_SERVICE_HOST`"
             }
           )
         end
