@@ -104,7 +104,7 @@ module FleetAdapter
 
       def service_block
         docker_rm = "-/usr/bin/docker rm #{prefix}"
-        service_registration = "/usr/bin/etcdctl set app/#{name.upcase}_SERVICE_HOST ${COREOS_PUBLIC_IPV4}"
+        service_registration = "/usr/bin/etcdctl set app/#{name.upcase}_SERVICE_HOST ${COREOS_PRIVATE_IPV4}"
         service_deregistration = "/usr/bin/etcdctl rm app/#{name.upcase}_SERVICE_HOST"
         if min_port
           service_registration += " ; /usr/bin/etcdctl set app/#{name.upcase}_SERVICE_PORT #{min_port}"
