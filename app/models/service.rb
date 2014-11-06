@@ -147,10 +147,14 @@ module FleetAdapter
       end
 
       def min_port
-        min_port = ports.empty? ? MAX_PORT : ports.sort_by { |port_binding| port_binding[:hostPort]}.first[:hostPort]
+        if ports.empty?
+          min_container_port = MAX_PORT
+        else
+          min_container_port = ports.sort_by { |port_binding| port_binding[:containerPort]}.first[:containerPort]
+        end
         min_exposed = expose.sort.first || MAX_PORT
-        val = [min_port.to_i, min_exposed.to_i].min
-        val unless val == MAX_PORT
+        min_port = [min_container_port.to_i, min_exposed.to_i].min
+        min_port unless min_port == MAX_PORT
       end
 
       def port_flags
