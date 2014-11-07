@@ -244,18 +244,18 @@ describe FleetAdapter::Models::Service do
     context 'when the service specifies docker links' do
       it 'translates docker links to environment variables' do
         subject.links = [{ name: 'db', alias: 'db_1', protocol: 'tcp', port: 3306 }]
-        expect(subject.send(:docker_run_string)).to include '-e DB_1_SERVICE_HOST=`/usr/bin/etcdctl get app/DB_SERVICE_HOST`'
-        expect(subject.send(:docker_run_string)).to include '-e DB_1_SERVICE_PORT=`/usr/bin/etcdctl get app/DB_SERVICE_PORT`'
-        expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT=tcp://`/usr/bin/etcdctl get app/DB_SERVICE_HOST`:`/usr/bin/etcdctl get app/DB_SERVICE_PORT`'
+        expect(subject.send(:docker_run_string)).to include '-e DB_1_SERVICE_HOST=`/usr/bin/etcdctl get app/DB/DB_SERVICE_HOST`'
+        expect(subject.send(:docker_run_string)).to include '-e DB_1_SERVICE_PORT=`/usr/bin/etcdctl get app/DB/DB_SERVICE_PORT`'
+        expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT=tcp://`/usr/bin/etcdctl get app/DB/DB_SERVICE_HOST`:`/usr/bin/etcdctl get app/DB/DB_SERVICE_PORT`'
         expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT_3306_TCP_PROTO=tcp'
-        expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT_3306_TCP_ADDR=`/usr/bin/etcdctl get app/DB_SERVICE_HOST`'
-        expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT_3306_TCP=tcp://`/usr/bin/etcdctl get app/DB_SERVICE_HOST`:`/usr/bin/etcdctl get app/DB_SERVICE_PORT`'
-        expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT_3306_TCP_PORT=`/usr/bin/etcdctl get app/DB_SERVICE_PORT`'
+        expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT_3306_TCP_ADDR=`/usr/bin/etcdctl get app/DB/DB_SERVICE_HOST`'
+        expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT_3306_TCP=tcp://`/usr/bin/etcdctl get app/DB/DB_SERVICE_HOST`:`/usr/bin/etcdctl get app/DB/DB_SERVICE_PORT`'
+        expect(subject.send(:docker_run_string)).to include '-e DB_1_PORT_3306_TCP_PORT=`/usr/bin/etcdctl get app/DB/DB_SERVICE_PORT`'
       end
 
       it 'sanitizes the link names when creating the env vars' do
         subject.links = [{ name: 'db_@:.-', alias: 'db_1', protocol: 'tcp', port: 3306 }]
-        expect(subject.send(:docker_run_string)).to include '-e DB_1_SERVICE_HOST=`/usr/bin/etcdctl get app/DB-----_SERVICE_HOST`'
+        expect(subject.send(:docker_run_string)).to include '-e DB_1_SERVICE_HOST=`/usr/bin/etcdctl get app/DB-----/DB-----_SERVICE_HOST`'
       end
     end
 
@@ -295,7 +295,7 @@ describe FleetAdapter::Models::Service do
     end
 
     it 'creates a docker kill string command with the service name only' do
-      expect(subject.send(:service_def)['Service']['ExecStop']).to eq('-/usr/bin/docker kill foo')
+      expect(subject.send(:service_def)['Service']['ExecStop']).to eq('-/bin/bash -c "/usr/bin/etcdctl rm app/FOO@1 --recursive && /usr/bin/docker kill foo"')
     end
 
     it 'adds an X-Fleet block to the unit file' do

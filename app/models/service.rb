@@ -104,11 +104,9 @@ module FleetAdapter
 
       def service_block
         docker_rm = "-/usr/bin/docker rm #{prefix}"
-        service_registration = "/usr/bin/etcdctl set app/#{name.upcase}_SERVICE_HOST ${COREOS_PRIVATE_IPV4}"
-        service_deregistration = "/usr/bin/etcdctl rm app/#{name.upcase}_SERVICE_HOST"
+        service_registration = "/usr/bin/etcdctl set app/#{name.upcase}/#{name.upcase}_SERVICE_HOST ${COREOS_PRIVATE_IPV4}"
         if min_port
-          service_registration += " ; /usr/bin/etcdctl set app/#{name.upcase}_SERVICE_PORT #{min_port}"
-          service_deregistration += " ; /usr/bin/etcdctl rm app/#{name.upcase}_SERVICE_PORT"
+          service_registration += " ; /usr/bin/etcdctl set app/#{name.upcase}/#{name.upcase}_SERVICE_PORT #{min_port}"
         end
 
         {
@@ -118,8 +116,7 @@ module FleetAdapter
           'ExecStartPre' => "-/usr/bin/docker pull #{source}",
           'ExecStart' => "-/bin/bash -c \"#{docker_run_string}\"",
           'ExecStartPost' => docker_rm,
-          'ExecStop' => "-/usr/bin/docker kill #{prefix}",
-          :ExecStopPost => "#{service_deregistration}",
+          'ExecStop' => "-/bin/bash -c \"/usr/bin/etcdctl rm app/#{name.upcase} --recursive && /usr/bin/docker kill #{prefix}\"",
           'ExecStopPost' => docker_rm,
           'Restart' => 'always',
           'RestartSec' => '10',
@@ -189,19 +186,19 @@ module FleetAdapter
           link_vars.push(
             {
               variable: (link_alias ? "#{link_alias}_SERVICE_HOST" : "#{link_name}_SERVICE_HOST").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name}_SERVICE_HOST`"
+              value: "`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`"
             },
             {
               variable: (link_alias ? "#{link_alias}_SERVICE_PORT" : "#{link_name}_SERVICE_PORT").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name}_SERVICE_PORT`"
+              value: "`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_PORT`"
             },
             {
               variable: (link_alias ? "#{link_alias}_PORT" : "#{link_name}_PORT").upcase,
-              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name}_SERVICE_PORT`"
+              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_PORT`"
             },
             {
               variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}").upcase,
-              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name}_SERVICE_PORT`"
+              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_PORT`"
             },
             {
               variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_PROTO" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_PROTO").upcase,
@@ -209,11 +206,11 @@ module FleetAdapter
             },
             {
               variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_PORT" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_PORT").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name}_SERVICE_PORT`"
+              value: "`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_PORT`"
             },
             {
               variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_ADDR" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_ADDR").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name}_SERVICE_HOST`"
+              value: "`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`"
             }
           )
         end
