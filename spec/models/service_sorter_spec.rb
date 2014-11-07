@@ -33,6 +33,7 @@ describe FleetAdapter::Models::ServiceSorter do
       it 'uses the lowest numbered exposed port as the link port' do
         expect(subject.last[:links].first[:port]).to eq 80
       end
+
       it "uses 'tcp' as the link protocol" do
         expect(subject.last[:links].first[:protocol]).to eq 'tcp'
       end
@@ -90,6 +91,30 @@ describe FleetAdapter::Models::ServiceSorter do
 
     it 'returns an array of just the link names' do
       expect(described_class.send(:get_service_names_for, links)).to contain_exactly("FOO", "BAZ")
+    end
+  end
+
+  describe '.ports_and_protocols_for' do
+    it 'responds with mapped ports when there are only mapped ports' do
+      service = { ports: [{ hostPort: 80, protocol: 'tcp' }] }
+      expect(described_class.send(:ports_and_protocols_for, service)).to match_array([{ port: 80, protocol: 'tcp' }])
+    end
+
+
+    it 'responds with exposed ports when there are only exposed ports' do
+      service = { expose: [80] }
+      expect(described_class.send(:ports_and_protocols_for, service)).to match_array([{ port: 80, protocol: 'tcp' }])
+    end
+
+    it 'combines mapped and exposed ports if there are both' do
+      service = { expose: [80], ports: [{ hostPort: 8080, protocol: 'tcp' }] }
+      expect(described_class.send(:ports_and_protocols_for, service)).to match_array([{ port: 80, protocol: 'tcp' },
+                                                                                      { port: 8080, protocol: 'tcp' }])
+    end
+
+    it 'returns an empty array if there no mapped or exposed ports' do
+      service = { expose: [], ports: [] }
+      expect(described_class.send(:ports_and_protocols_for, service)).to match_array([])
     end
   end
 end

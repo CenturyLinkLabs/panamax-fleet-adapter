@@ -71,10 +71,13 @@ module FleetAdapter
         # Finds the explicitly exposed ports (:ports and :expose) on the dependency and
         # creates a hash of the port and protocol for each
         def ports_and_protocols_for(service)
-          return [] unless service.has_key?(:ports)
+          ports = []
 
-          ports = service[:ports].map do |exposed_port|
-            { port: exposed_port[:hostPort], protocol: (exposed_port[:protocol] || 'tcp') }
+          if service[:ports]
+            mapped_ports = service[:ports].map do |exposed_port|
+              { port: exposed_port[:hostPort], protocol: (exposed_port[:protocol] || 'tcp') }
+            end
+            ports.push(mapped_ports).flatten!
           end
 
           if service[:expose]
