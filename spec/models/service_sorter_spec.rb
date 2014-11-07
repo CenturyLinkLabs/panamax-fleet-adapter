@@ -47,7 +47,7 @@ describe FleetAdapter::Models::ServiceSorter do
       end
 
       it 'raises an exception' do
-        expect{ described_class.sort(services) }.to raise_error(RuntimeError, /image can not link to itself/)
+        expect{ described_class.sort(services) }.to raise_error(ArgumentError, /image can not link to itself/)
       end
 
     end
@@ -61,7 +61,7 @@ describe FleetAdapter::Models::ServiceSorter do
       end
 
       it 'raises an exception' do
-        expect{ described_class.sort(services) }.to raise_error(RuntimeError, /Circular import/)
+        expect{ described_class.sort(services) }.to raise_error(ArgumentError, /Circular import/)
       end
 
     end

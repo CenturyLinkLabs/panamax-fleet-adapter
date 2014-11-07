@@ -23,9 +23,9 @@ module FleetAdapter
         def visit(n)
           if @temporary_marked.include?(n[:name])
             if get_service_names_for(n[:links]).include?(n[:name])
-              raise "An image can not link to itself: #{n[:name]}"
+              raise ArgumentError, "An image can not link to itself: #{n[:name]}"
             else
-              raise "Circular import between #{n[:name]} and #{@temporary_marked}"
+              raise ArgumentError, "Circular import between #{n[:name]} and #{@temporary_marked}"
             end
           end
 
