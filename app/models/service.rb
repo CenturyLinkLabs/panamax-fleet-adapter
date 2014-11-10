@@ -6,8 +6,6 @@ module FleetAdapter
 
       using FleetAdapter::StringExtensions
 
-      MAX_PORT = 65536
-
       attr_accessor :id, :name, :source, :links, :command, :ports,
         :expose, :environment, :volumes, :deployment, :prefix
 
@@ -105,9 +103,6 @@ module FleetAdapter
       def service_block
         docker_rm = "-/usr/bin/docker rm #{prefix}"
         service_registration = "/usr/bin/etcdctl set app/#{name.upcase}/#{name.upcase}_SERVICE_HOST ${COREOS_PRIVATE_IPV4}"
-        if min_port
-          service_registration += " ; /usr/bin/etcdctl set app/#{name.upcase}/#{name.upcase}_SERVICE_PORT #{min_port}"
-        end
 
         {
           # A hack to be able to have two ExecStartPre values
@@ -143,17 +138,6 @@ module FleetAdapter
         ].flatten.compact.join(' ').strip
       end
 
-      def min_port
-        if ports.empty?
-          min_container_port = MAX_PORT
-        else
-          min_container_port = ports.sort_by { |port_binding| port_binding[:containerPort]}.first[:containerPort]
-        end
-        min_exposed = expose.sort.first || MAX_PORT
-        min_port = [min_container_port.to_i, min_exposed.to_i].min
-        min_port unless min_port == MAX_PORT
-      end
-
       def port_flags
         return unless ports
 
@@ -183,36 +167,40 @@ module FleetAdapter
           link_alias = link[:alias].upcase if link[:alias]
           link_name = link[:name].sanitize.upcase
 
+          min_port = link[:exposed_ports].sort_by { |exposed_port| exposed_port[:containerPort] }.first
+
           link_vars.push(
             {
               variable: (link_alias ? "#{link_alias}_SERVICE_HOST" : "#{link_name}_SERVICE_HOST").upcase,
               value: "`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`"
             },
             {
-              variable: (link_alias ? "#{link_alias}_SERVICE_PORT" : "#{link_name}_SERVICE_PORT").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_PORT`"
-            },
-            {
               variable: (link_alias ? "#{link_alias}_PORT" : "#{link_name}_PORT").upcase,
-              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_PORT`"
-            },
-            {
-              variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}").upcase,
-              value: "#{link[:protocol]}://`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`:`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_PORT`"
-            },
-            {
-              variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_PROTO" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_PROTO").upcase,
-              value: link[:protocol]
-            },
-            {
-              variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_PORT" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_PORT").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_PORT`"
-            },
-            {
-              variable: (link_alias ? "#{link_alias}_PORT_#{link[:port]}_#{link[:protocol]}_ADDR" : "#{link_name}_PORT_#{link[:port]}_#{link[:protocol]}_ADDR").upcase,
-              value: "`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`"
+              value: "#{min_port[:protocol]}://`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`:#{min_port[:hostPort]}"
             }
           )
+
+          # Docker-esque container linking variables
+          link[:exposed_ports].each do |exposed_port|
+            link_vars.push(
+              {
+                variable: (link_alias ? "#{link_alias}_PORT_#{exposed_port[:containerPort]}_#{exposed_port[:protocol]}" : "#{link_name}_PORT_#{exposed_port[:containerPort]}_#{exposed_port[:protocol]}").upcase,
+                value: "#{exposed_port[:protocol]}://`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`:#{exposed_port[:hostPort]}"
+              },
+              {
+                variable: (link_alias ? "#{link_alias}_PORT_#{exposed_port[:containerPort]}_#{exposed_port[:protocol]}_PROTO" : "#{link_name}_PORT_#{exposed_port[:containerPort]}_#{exposed_port[:protocol]}_PROTO").upcase,
+                value: exposed_port[:protocol]
+              },
+              {
+                variable: (link_alias ? "#{link_alias}_PORT_#{exposed_port[:containerPort]}_#{exposed_port[:protocol]}_PORT" : "#{link_name}_PORT_#{exposed_port[:containerPort]}_#{exposed_port[:protocol]}_PORT").upcase,
+                value: exposed_port[:hostPort]
+              },
+              {
+                variable: (link_alias ? "#{link_alias}_PORT_#{exposed_port[:containerPort]}_#{exposed_port[:protocol]}_ADDR" : "#{link_name}_PORT_#{exposed_port[:containerPort]}_#{exposed_port[:protocol]}_ADDR").upcase,
+                value: "`/usr/bin/etcdctl get app/#{link_name}/#{link_name}_SERVICE_HOST`"
+              }
+            )
+          end
         end
 
         link_vars.map { |link| "-e #{link[:variable]}=#{link[:value]}" }

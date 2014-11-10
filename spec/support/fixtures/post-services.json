@@ -16,7 +16,7 @@
     "environment": [
       {"variable": "MYSQL_ROOT_PASSWORD", "value": "pass@word01"}
     ],
-    "ports": [ {"hostPort": 3306, "containerPort": 3306} ],
+    "ports": [ {"hostPort": 1111, "containerPort": 3306} ],
     "deployment": { "count": 3 }
   }
 ]

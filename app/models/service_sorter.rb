@@ -60,36 +60,22 @@ module FleetAdapter
           return if service[:links].to_a.empty?
 
           exposed_ports = ports_and_protocols_for(dependency)
-          unless min_port = exposed_ports.sort_by { |exposed_port| exposed_port[:port] }.first
-            raise ArgumentError, "#{dependency[:name]} does not expose a port"
-          end
 
-          service[:links].find { |link| link[:name] == dependency[:name] }
-                         .merge!({ port: min_port[:port], protocol: min_port[:protocol] })
+          service[:links].find { |link| link[:name] == dependency[:name] }.merge!({ exposed_ports: exposed_ports })
         end
 
         # Finds the explicitly exposed ports (:ports and :expose) on the dependency and
         # creates a hash of the port and protocol for each
         def ports_and_protocols_for(service)
-          ports = []
-
-          if service[:ports]
-            mapped_ports = service[:ports].map do |exposed_port|
-              { port: exposed_port[:hostPort], protocol: (exposed_port[:protocol] || 'tcp') }
-            end
-            ports.push(mapped_ports).flatten!
+          if service[:ports].to_a.empty?
+            raise ArgumentError, "#{service[:name]} does not have an explicit port binding"
           end
 
-          if service[:expose]
-            exposed_ports = service[:expose].map do |exposed_port|
-              { port: exposed_port, protocol: 'tcp' }
-            end
-            ports.push(exposed_ports).flatten!
+          mapped_ports = service[:ports].map do |exposed_port|
+            exposed_port.merge!({ protocol: 'tcp' }) unless exposed_port.has_key?(:proto)
           end
-
-          return ports
+          mapped_ports.flatten
         end
-
       end
     end
   end

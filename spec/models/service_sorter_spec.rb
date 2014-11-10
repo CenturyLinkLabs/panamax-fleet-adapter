@@ -20,23 +20,9 @@ describe FleetAdapter::Models::ServiceSorter do
     it 'adds the port and protocol of the dependency to the dependent link hash' do
       expect(subject.last[:links].first[:name]).to eq 'DB'
       expect(subject.last[:links].first[:alias]).to eq 'DB_1'
-      expect(subject.last[:links].first[:port]).to eq 3306
-      expect(subject.last[:links].first[:protocol]).to eq 'tcp'
-    end
-
-    context 'when a dependent container exposes ports' do
-      before do
-        @db_service = services.find { |service| service[:name] == 'DB' }
-        @db_service[:expose] = [80]
-      end
-
-      it 'uses the lowest numbered exposed port as the link port' do
-        expect(subject.last[:links].first[:port]).to eq 80
-      end
-
-      it "uses 'tcp' as the link protocol" do
-        expect(subject.last[:links].first[:protocol]).to eq 'tcp'
-      end
+      expect(subject.last[:links].first[:exposed_ports].first[:hostPort]).to eq 1111
+      expect(subject.last[:links].first[:exposed_ports].first[:containerPort]).to eq 3306
+      expect(subject.last[:links].first[:exposed_ports].first[:protocol]).to eq 'tcp'
     end
 
     context 'when a container links to itself' do
@@ -66,18 +52,6 @@ describe FleetAdapter::Models::ServiceSorter do
       end
 
     end
-
-    context 'when a dependency does not expose a port through expose or port bindings' do
-      before do
-        @db_service = services.find { |service| service[:name] == 'DB' }
-        @db_service[:expose] = []
-        @db_service[:ports] = []
-      end
-
-      it 'raises an exception' do
-        expect{ described_class.sort(services) }.to raise_error(ArgumentError, /does not expose a port/)
-      end
-    end
   end
 
   describe '.get_service_names_for' do
@@ -95,26 +69,19 @@ describe FleetAdapter::Models::ServiceSorter do
   end
 
   describe '.ports_and_protocols_for' do
-    it 'responds with mapped ports when there are only mapped ports' do
-      service = { ports: [{ hostPort: 80, protocol: 'tcp' }] }
-      expect(described_class.send(:ports_and_protocols_for, service)).to match_array([{ port: 80, protocol: 'tcp' }])
+    it 'raises an exception if there are no ports' do
+      service = { ports: [] }
+      expect{ described_class.send(:ports_and_protocols_for, service) }.to raise_error(ArgumentError, /does not have an explicit port binding/)
     end
 
-
-    it 'responds with exposed ports when there are only exposed ports' do
-      service = { expose: [80] }
-      expect(described_class.send(:ports_and_protocols_for, service)).to match_array([{ port: 80, protocol: 'tcp' }])
+    it 'responds with mapped ports' do
+      service = { ports: [{ hostPort: 80, containerPort: 1234, protocol: 'tcp' }] }
+      expect(described_class.send(:ports_and_protocols_for, service)).to match_array([{ hostPort: 80, containerPort: 1234, protocol: 'tcp' }])
     end
 
-    it 'combines mapped and exposed ports if there are both' do
-      service = { expose: [80], ports: [{ hostPort: 8080, protocol: 'tcp' }] }
-      expect(described_class.send(:ports_and_protocols_for, service)).to match_array([{ port: 80, protocol: 'tcp' },
-                                                                                      { port: 8080, protocol: 'tcp' }])
-    end
-
-    it 'returns an empty array if there no mapped or exposed ports' do
-      service = { expose: [], ports: [] }
-      expect(described_class.send(:ports_and_protocols_for, service)).to match_array([])
+    it 'adds the tcp protocol if no protocol type is defined' do
+      service = { ports: [{ hostPort: 80, containerPort: 1234 }] }
+      expect(described_class.send(:ports_and_protocols_for, service)).to match_array([{ hostPort: 80, containerPort: 1234, protocol: 'tcp' }])
     end
   end
 end

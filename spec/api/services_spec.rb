@@ -60,7 +60,7 @@ describe FleetAdapter::Routes::Services do
       end
 
       it 'includes an error message indicating the service should expose a port' do
-        expected = { error: 'dependency does not expose a port' }.to_json
+        expected = { error: 'dependency does not have an explicit port binding' }.to_json
         post '/v1/services', request_body
         expect(last_response.body).to eq expected
       end
