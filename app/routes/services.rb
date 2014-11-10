@@ -1,19 +1,20 @@
 require 'app/models/service'
+require 'app/models/service_sorter'
 require 'fleet'
 
 module FleetAdapter
   module Routes
     class Services < Base
 
-      post '/services' do
-        services = Service.create_all(@payload)
+      post "/#{API_VERSION}/services" do
+        sorted_services = ServiceSorter.sort(@payload)
+        services = Service.create_all(sorted_services)
         services.each(&:start)
-
         status 201
         json services.map { |service| { id: service.id } }
       end
 
-      get '/services/:id' do
+      get "/#{API_VERSION}/services/:id" do
         service = Service.find(params[:id])
 
         result = {
@@ -24,10 +25,10 @@ module FleetAdapter
         json result
       end
 
-      put '/services/:id' do
+      put "/#{API_VERSION}/services/:id" do
         service = Service.find(params[:id])
 
-        case @payload['desiredState']
+        case @payload[:desiredState]
         when 'started'
           service.start
           status 204
@@ -39,7 +40,7 @@ module FleetAdapter
         end
       end
 
-      delete '/services/:id' do
+      delete "/#{API_VERSION}/services/:id" do
         Service.find(params[:id]).destroy
         status 204
       end

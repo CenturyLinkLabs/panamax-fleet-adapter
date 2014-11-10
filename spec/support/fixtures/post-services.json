@@ -1,0 +1,22 @@
+[
+  {
+    "name": "WP",
+    "source": "centurylink/wordpress:3.9.1",
+    "links": [{"name": "DB", "alias": "DB_1"}],
+    "ports": [ {"hostPort": 8000, "containerPort": 80}],
+    "environment": [
+      {"variable": "DB_PASSWORD", "value": "pass@word01" },
+      {"variable": "DB_NAME", "value": "wordpress" }
+    ],
+    "deployment": { "count": 3 }
+  },
+  {
+    "name": "DB",
+    "source": "centurylink/mysql:5.5",
+    "environment": [
+      {"variable": "MYSQL_ROOT_PASSWORD", "value": "pass@word01"}
+    ],
+    "ports": [ {"hostPort": 1111, "containerPort": 3306} ],
+    "deployment": { "count": 3 }
+  }
+]

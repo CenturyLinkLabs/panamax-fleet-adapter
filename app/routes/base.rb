@@ -10,8 +10,16 @@ module FleetAdapter
         @payload = symbolize_keys(JSON.parse(request.body.read)) rescue nil
       end
 
+      configure do
+        set show_exceptions: false
+      end
+
       error Fleet::NotFound do
         status 404
+      end
+
+      error ArgumentError do
+        [422, {'Content-Type' => 'application/json'}, { error: env['sinatra.error'].message }.to_json ]
       end
 
       private
