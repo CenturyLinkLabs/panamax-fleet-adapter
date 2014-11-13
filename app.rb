@@ -13,6 +13,8 @@ require 'app/routes'
 require 'app/utils'
 
 module FleetAdapter
+  VERSION = ENV["ADAPTER_VERSION"]
+
   class App < Sinatra::Application
     configure do
       disable :method_override
@@ -20,6 +22,7 @@ module FleetAdapter
     end
 
     use FleetAdapter::Routes::Services
+    use FleetAdapter::Routes::Metadata
   end
 end
 
