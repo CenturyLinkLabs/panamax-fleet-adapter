@@ -132,42 +132,21 @@ describe FleetAdapter::Models::Service do
   describe '#refresh' do
     before do
       allow(Fleet).to receive(:new) { fake_fleet_client }
+      fake_fleet_client.stub(:status).and_return(active_state: 'active',
+                                                 load_state: 'loaded',
+                                                 sub_state: 'running',
+                                                 machine_state: 'wtf')
     end
 
     it 'gets the status of a unit' do
-      expect(fake_fleet_client).to receive(:status).with(subject.id)
       subject.refresh
+      expect(subject.status).to match /load_state: loaded/
+      expect(subject.status).to match /active_state: active/
+      expect(subject.status).to match /sub_state: running/
+      expect(subject.status).not_to match /machine_state/
     end
 
-    context 'when the service is active' do
-      before do
-        fake_fleet_client.stub(:status).and_return({ active_state: 'active' })
-      end
 
-      it 'returns started' do
-        expect(subject.refresh).to eq('started')
-      end
-    end
-
-    context 'when the service is failed' do
-      before do
-        fake_fleet_client.stub(:status).and_return({ active_state: 'failed' })
-      end
-
-      it 'returns stopped' do
-        expect(subject.refresh).to eq('stopped')
-      end
-    end
-
-    context 'when the service is neither active nor failed' do
-      before do
-        fake_fleet_client.stub(:status).and_return({ active_state: 'foo' })
-      end
-
-      it 'returns error' do
-        expect(subject.refresh).to eq('error')
-      end
-    end
   end
 
   describe '#docker_run_string' do

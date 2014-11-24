@@ -70,7 +70,7 @@ describe FleetAdapter::Routes::Services do
   describe 'GET /services/:id' do
 
     let(:model) { Service.new(id: id) }
-    let(:status) { 'started' }
+    let(:status) { 'load_state: loaded; active_state: active; sub_state: running' }
 
     before do
       allow(Service).to receive(:find).and_return(model)

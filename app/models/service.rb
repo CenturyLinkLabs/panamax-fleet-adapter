@@ -65,13 +65,11 @@ module FleetAdapter
       end
 
       def refresh
-        @status = case fleet.status(id)[:active_state]
-        when 'active'
-          'started'
-        when 'failed'
-          'stopped'
+        if status = fleet.status(id)
+          status.select! { |k, _| %i(active_state load_state sub_state).include?(k) }
+          @status = status.each_with_object('') { |(k, v), state| state << "#{k}: #{v}; "}.chomp('; ')
         else
-          'error'
+          @status = 'error'
         end
       end
 
