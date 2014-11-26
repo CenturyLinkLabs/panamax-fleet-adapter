@@ -4,6 +4,6 @@ EXPOSE 9292
 
 ADD . /var/app/fleet-adapter
 WORKDIR /var/app/fleet-adapter
-RUN bundle install
+RUN bundle install --without development test
 
 CMD ["rackup", "-E production"]
