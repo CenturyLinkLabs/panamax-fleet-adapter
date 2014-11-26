@@ -119,7 +119,7 @@ describe FleetAdapter::Models::Service do
   describe '#load' do
     before do
       allow(Fleet).to receive(:new) { fake_fleet_client }
-      subject.stub(:service_def).and_return({})
+      allow(subject).to receive(:service_def).and_return({})
     end
 
     it 'sends the id and service_def to the fleet client' do
@@ -132,7 +132,7 @@ describe FleetAdapter::Models::Service do
   describe '#refresh' do
     before do
       allow(Fleet).to receive(:new) { fake_fleet_client }
-      fake_fleet_client.stub(:status).and_return(active_state: 'active',
+      allow(fake_fleet_client).to receive(:status).and_return(active_state: 'active',
                                                  load_state: 'loaded',
                                                  sub_state: 'running',
                                                  machine_state: 'wtf')
