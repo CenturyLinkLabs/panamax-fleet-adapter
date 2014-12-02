@@ -15,17 +15,13 @@ describe FleetAdapter::Routes::Services do
     end
 
     before do
-      allow_any_instance_of(Service).to receive(:load)
-      allow_any_instance_of(Service).to receive(:start)
+      allow_any_instance_of(ServiceMediator)
+          .to receive(:load_and_start_all)
+          .and_return([Service.new(name: service_name, source: 'foo/bar')])
     end
 
-    it 'loads the services' do
-      expect_any_instance_of(Service).to receive(:load).exactly(:once)
-      post '/v1/services', request_body
-    end
-
-    it 'starts the services' do
-      expect_any_instance_of(Service).to receive(:start).exactly(:once)
+    it 'loads and starts the services via the mediator' do
+      expect_any_instance_of(ServiceMediator).to receive(:load_and_start_all).exactly(:once)
       post '/v1/services', request_body
     end
 
@@ -54,6 +50,12 @@ describe FleetAdapter::Routes::Services do
         ].to_json
       end
 
+      before do
+        allow_any_instance_of(ServiceMediator)
+            .to receive(:load_and_start_all)
+            .and_raise(ArgumentError, 'dependency does not have an explicit port binding')
+      end
+
       it 'returns a 422 status' do
         post '/v1/services', request_body
         expect(last_response.status).to eq 422
@@ -69,16 +71,14 @@ describe FleetAdapter::Routes::Services do
 
   describe 'GET /services/:id' do
 
-    let(:model) { Service.new(id: id) }
     let(:status) { 'load_state: loaded; active_state: active; sub_state: running' }
 
     before do
-      allow(Service).to receive(:find).and_return(model)
-      allow(model).to receive(:status).and_return(status)
+      allow_any_instance_of(ServiceMediator).to receive(:status_for).with(id).and_return(status)
     end
 
     it 'returns the status formatted as JSON' do
-      expected = { id: model.id, actualState: model.status }.to_json
+      expected = { id: id, actualState: status }.to_json
 
       get "/v1/services/#{id}"
       expect(last_response.body).to eq expected
@@ -97,7 +97,7 @@ describe FleetAdapter::Routes::Services do
     context 'when the service cannot be found' do
 
       before do
-        allow(Service).to receive(:find).and_raise(Fleet::NotFound.new('Key not found'))
+        allow_any_instance_of(ServiceMediator).to receive(:status_for).and_raise(Fleet::NotFound.new('Key not found'))
       end
 
       it 'returns a 404 status' do
@@ -110,19 +110,13 @@ describe FleetAdapter::Routes::Services do
 
   describe 'PUT /services/:id' do
 
-    let(:model) { Service.new(id: id) }
-
-    before do
-      allow(Service).to receive(:find).and_return(model)
-    end
-
     context "when attempting to start" do
       let(:request_body) do
           { desiredState: 'started' }.to_json
       end
 
       before do
-        allow(model).to receive(:start).and_return(true)
+        allow_any_instance_of(ServiceMediator).to receive(:start).with(id).and_return(true)
       end
 
       it 'returns a 204 status' do
@@ -137,7 +131,7 @@ describe FleetAdapter::Routes::Services do
       end
 
       before do
-        allow(model).to receive(:stop).and_return(true)
+        allow_any_instance_of(ServiceMediator).to receive(:stop).with(id).and_return(true)
       end
 
       it 'returns a 204 status' do
@@ -151,10 +145,6 @@ describe FleetAdapter::Routes::Services do
         { desiredState: 'thrashing wildly' }.to_json
       end
 
-      before do
-        allow(model).to receive(:stop).and_return(true)
-      end
-
       it 'returns a 400 status' do
         put "/v1/services/#{id}", request_body
         expect(last_response.status).to eq 400
@@ -164,20 +154,17 @@ describe FleetAdapter::Routes::Services do
 
   describe 'DELETE /services/:id' do
 
-    let(:model) { Service.new(id: id) }
-
     before do
-      allow(Service).to receive(:find).and_return(model)
-      allow(model).to receive(:destroy)
+      allow_any_instance_of(ServiceMediator).to receive(:destroy).with(id).and_return(true)
     end
 
     it 'finds the service with the given id' do
-      expect(Service).to receive(:find).with(id)
+      expect_any_instance_of(ServiceMediator).to receive(:destroy).with(id)
       delete "/v1/services/#{id}"
     end
 
     it 'destroys the service' do
-      expect(model).to receive(:destroy)
+      expect_any_instance_of(ServiceMediator).to receive(:destroy).with(id)
       delete "/v1/services/#{id}"
     end
 
