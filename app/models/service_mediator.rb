@@ -9,6 +9,9 @@ module FleetAdapter
       def load_and_start_all
         create_all
         @services.each { |service| load_service(service) }.each { |service| start(service.id) }
+      rescue => ex
+        @services.each { |service| destroy(service.id) }
+        raise RuntimeError, ex.message
       end
 
       def status_for(id)

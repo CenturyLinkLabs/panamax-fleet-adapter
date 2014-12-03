@@ -29,7 +29,6 @@ describe FleetAdapter::Models::ServiceMediator do
       expect(subject.instance_variable_defined?(:@services)).to be true
       expect(subject.instance_variable_get(:@services)).to be_an Array
       expect(subject.instance_variable_get(:@services)).to be_empty
-
     end
   end
 
@@ -46,6 +45,23 @@ describe FleetAdapter::Models::ServiceMediator do
 
     it 'populates the list of services scaled by deployment count' do
       expect(subject.instance_variable_get(:@services).map(&:name)).to match_array(['db', 'wp@1', 'wp@2', 'wp@3'])
+    end
+
+    context 'when one or more services fail to load' do
+      before do
+        allow(fake_fleet_client).to receive(:load) { raise Fleet::ConnectionError, 'boom' }
+      end
+
+      %w(db wp@1 wp@2 wp@3).each do |service_name|
+        it 'attempts to destroy each service' do
+          expect(fake_fleet_client).to receive(:destroy).with("#{service_name}.service")
+          expect { subject.load_and_start_all }.to raise_exception
+        end
+      end
+
+      it 'fails' do
+        expect { subject.load_and_start_all }.to raise_exception
+      end
     end
   end
 
