@@ -104,7 +104,8 @@ module FleetAdapter
           link_name = link[:name].sanitize.upcase
           link_alias = link[:alias] ? link[:alias].upcase : link_name
           etcd_key = "app/#{link_name}/#{link_name}_SERVICE_HOST"
-          min_port = link[:exposed_ports].sort_by { |exposed_port| exposed_port[:containerPort] }.first
+          min_port = link[:service].ports.sort_by { |exposed_port| exposed_port[:containerPort] }.first
+          min_port_protocol = min_port.fetch(:protocol, 'tcp')
 
           link_vars.push(
             {
@@ -113,15 +114,15 @@ module FleetAdapter
             },
             {
               variable: "#{link_alias}_PORT",
-              value: "#{min_port[:protocol]}://`/usr/bin/etcdctl get #{etcd_key}`:#{min_port[:hostPort]}"
+              value: "#{min_port_protocol}://`/usr/bin/etcdctl get #{etcd_key}`:#{min_port[:hostPort]}"
             }
           )
 
           # Docker-esque container linking variables
-          link[:exposed_ports].each do |exposed_port|
+          link[:service].ports.each do |exposed_port|
             container_port = exposed_port[:containerPort]
             host_port = exposed_port[:hostPort]
-            protocol = exposed_port[:protocol]
+            protocol = exposed_port.fetch(:protocol, 'tcp')
             alias_var_base = "#{link_alias}_PORT_#{container_port}_#{protocol}".upcase
 
             link_vars.push(

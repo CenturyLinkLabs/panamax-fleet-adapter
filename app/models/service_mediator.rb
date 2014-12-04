@@ -36,7 +36,7 @@ module FleetAdapter
 
       def create_all
         service_prototypes.each do |proto|
-          if proto.deployment_count == 1 || proto.dependency?
+          if proto.deployment_count == 1
             @services << proto.clone
           else
             proto.deployment_count.times do |i|
@@ -47,7 +47,9 @@ module FleetAdapter
       end
 
       def service_prototypes
-        @service_prototypes ||= ServiceSorter.sort(@services_attrs.map { |service_attrs| Service.new(service_attrs) })
+        services = @services_attrs.map { |service_attrs| Service.new(service_attrs) }
+        services = ServiceLinker.link(services)
+        ServiceSorter.sort(services)
       end
 
       def load_service(service)

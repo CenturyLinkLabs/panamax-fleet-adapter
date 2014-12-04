@@ -6,16 +6,12 @@ describe FleetAdapter::Models::ServiceConverter do
 
   let(:service_attrs) { hash_from_fixture('post-services.json') }
 
-  let(:dependency) do
-    Service.new(service_attrs[1]).tap do |s|
-      s.dependency = true
-    end
-  end
+  let(:dependency) { Service.new(service_attrs[1]) }
 
   let(:service) do
     Service.new(service_attrs[0]).tap do |s|
       s.name = 'WP@1'
-      s.dependencies << dependency
+      s.links.first[:service] = dependency
     end.clone
   end
 
@@ -150,7 +146,7 @@ describe FleetAdapter::Models::ServiceConverter do
           {
             name: 'db_@:.-',
             alias: 'db_1',
-            exposed_ports: [{ protocol: 'tcp', containerPort: 3306, hostPort: 3306 }]
+            service: dependency
           }
         ]
         expect(subject.send(:docker_run_string))

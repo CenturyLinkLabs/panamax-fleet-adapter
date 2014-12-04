@@ -33,13 +33,16 @@ describe FleetAdapter::Models::ServiceMediator do
     end
   end
 
+  describe '#service_prototypes' do
+    it 'creates the list of service prototypes' do
+      result = subject.send(:service_prototypes)
+      expect(result).to be_an Array
+      expect(result.map(&:name)).to match_array(['db', 'wp'])
+    end
+  end
+
   describe '#load_and_start_all' do
     before { subject.load_and_start_all }
-
-    it 'creates the list of service prototypes' do
-      expect(subject.instance_variable_get(:@service_prototypes)).to be_an Array
-      expect(subject.instance_variable_get(:@service_prototypes).map(&:name)).to match_array(['db', 'wp'])
-    end
 
     it 'populates the list of services scaled by deployment count' do
       expect(subject.instance_variable_get(:@services).map(&:name)).to match_array(['db', 'wp@1', 'wp@2', 'wp@3'])

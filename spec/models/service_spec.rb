@@ -33,7 +33,6 @@ describe FleetAdapter::Models::Service do
       its(:expose) { is_expected.to eq [] }
       its(:environment) { is_expected.to eq [] }
       its(:volumes) { is_expected.to eq [] }
-      its(:deployment) { is_expected.to eq(count: 1) }
     end
 
     context 'when attrs are specified' do
@@ -46,7 +45,6 @@ describe FleetAdapter::Models::Service do
       its(:expose) { is_expected.to eq [80] }
       its(:environment) { is_expected.to eq attrs[:environment] }
       its(:volumes) { is_expected.to eq attrs[:volumes] }
-      its(:deployment) { is_expected.to eq attrs[:deployment] }
     end
 
     context 'when the name has a space' do
@@ -88,19 +86,6 @@ describe FleetAdapter::Models::Service do
     end
   end
 
-  describe '#is_dependency?' do
-    subject { described_class.new({}).tap { |s| s.dependency = true } }
-    it 'returns true when the service is a dependency' do
-      expect(subject.dependency?).to be true
-    end
-  end
-
-  describe '#dependencies' do
-    it 'returns an array' do
-      expect(subject.dependencies).to be_an Array
-    end
-  end
-
   describe '#deployment_count' do
     it 'returns an int' do
       expect(subject.deployment_count).to be_an Integer
@@ -120,44 +105,34 @@ describe FleetAdapter::Models::Service do
     end
   end
 
-  describe '#clone' do
-    let(:dependency) do
-      Service.new(
-        name: 'db',
-        ports: [{ hostPort: 3306, containerPort: 3306 }],
-        expose: [3306]
-      )
-    end
-
-    subject { described_class.new(attrs).tap { |s| s.dependencies << dependency } }
-
-    it 'clones the prototype' do
-      expect(subject.clone).to be_a described_class
-    end
-
-    it "adds the dependency's exposed ports to links" do
-      expect(subject.clone.links[0]).to have_key(:exposed_ports)
-    end
-
-    it 'adds the port and protocol of the dependency to the dependent link hash' do
-      expect(subject.clone.links.first[:name]).to eq 'db'
-      expect(subject.clone.links.first[:alias]).to eq 'db_1'
-      expect(subject.clone.links.first[:exposed_ports].first[:hostPort]).to eq 3306
-      expect(subject.clone.links.first[:exposed_ports].first[:containerPort]).to eq 3306
-      expect(subject.clone.links.first[:exposed_ports].first[:protocol]).to eq 'tcp'
+  describe '#deployment_count=' do
+    it 'sets the deployment count' do
+      subject.deployment_count = 2
+      expect(subject.deployment_count).to eq 2
     end
   end
 
-  describe '#set_link_port_and_protocol' do
-    let(:dependency) do
-      Service.new(name: 'db')
+  describe '#linkable?' do
+
+    context 'when the service is linkable' do
+      before do
+        subject.ports = [ { containerPort: '123' } ]
+      end
+
+      it 'returns true' do
+        expect(subject.linkable?).to eq true
+      end
     end
 
-    subject { described_class.new(attrs).tap { |s| s.dependencies << dependency } }
+    context 'when the service is not linkable' do
+      before do
+        subject.ports = nil
+      end
 
-    it 'raises an exception if there are no ports' do
-      expect { subject.send(:set_link_port_and_protocol, dependency) }
-        .to raise_error(ArgumentError, /does not have an explicit port binding/)
+      it 'returns false' do
+        expect(subject.linkable?).to eq false
+      end
     end
   end
+
 end
