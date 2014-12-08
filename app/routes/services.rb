@@ -1,4 +1,6 @@
 require 'app/models/service'
+require 'app/models/service_converter'
+require 'app/models/service_mediator'
 require 'app/models/service_sorter'
 require 'fleet'
 
@@ -8,33 +10,27 @@ module FleetAdapter
 
       namespace '/' + API_VERSION do
         post '/services' do
-          sorted_services = ServiceSorter.sort(@payload)
-          services = Service.create_all(sorted_services)
-          services.each(&:start)
+          services = service_mediator.load_and_start_all
           status 201
           json services.map { |service| { id: service.id } }
         end
 
         get '/services/:id' do
-          service = Service.find(params[:id])
-
           result = {
-            id: service.id,
-            'actualState' => service.status
+            id: params[:id],
+            'actualState' => service_mediator.status_for(params[:id])
           }
 
           json result
         end
 
         put '/services/:id' do
-          service = Service.find(params[:id])
-
           case @payload[:desiredState]
           when 'started'
-            service.start
+            service_mediator.start(params[:id])
             status 204
           when 'stopped'
-            service.stop
+            service_mediator.stop(params[:id])
             status 204
           else
             status 400
@@ -42,9 +38,13 @@ module FleetAdapter
         end
 
         delete '/services/:id' do
-          Service.find(params[:id]).destroy
+          service_mediator.destroy(params[:id])
           status 204
         end
+      end
+
+      def service_mediator
+        ServiceMediator.new(@payload)
       end
     end
   end
